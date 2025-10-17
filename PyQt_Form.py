@@ -1,6 +1,7 @@
 import os, sys
 import xml.etree.ElementTree as ET
 import clr
+
 clr.AddReference("System")
 from System import Array, Double
 from System.Collections.Generic import List
@@ -18,7 +19,7 @@ import numpy as np
 class CalibrationApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("高分五号 DPC 绝对辐射定标")
+        self.setWindowTitle("高分五号DPC绝对辐射定标-场地定标")
         self.setGeometry(200, 100, 1000, 600)
         self.pick_mode = False  # 是否处于画框模式
         self.image = None  # 后续加载图像时赋值
@@ -200,7 +201,9 @@ class CalibrationApp(QWidget):
         right_layout = QVBoxLayout()
         # self.image_display = QLabel("影像预览区")
         self.image_display = CalibrationApp.ImageLabel()
-        self.image_display.setAlignment(Qt.AlignCenter)
+        # self.image_display.setAlignment(Qt.AlignCenter)
+        # 设置左上角对齐
+        self.image_display.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.image_display.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
         right_layout.addWidget(self.image_display)
         right_widget.setLayout(right_layout)
@@ -230,21 +233,39 @@ class CalibrationApp(QWidget):
         QMessageBox.information(self, "提示", msg)
 
     # ---------- 修改部分 4：下拉框修改矩形大小 ----------
+    # ---------- 下拉框修改矩形大小 ----------
     def update_rubber_from_combo(self, text):
-        if self.rubber_rect.isNull(): return
+        if self.image is None:
+            return
         try:
             size = int(text)
-        except:
+        except ValueError:
             return
-        center = self.rubber_rect.center()
-        new_rect = QRect(center.x() - size // 2, center.y() - size // 2, size, size)
+
+        img_h, img_w = self.image.shape[:2]
+
+        # 以当前矩形中心为中心，计算新矩形
+        if self.rubber_rect.isNull():
+            # 如果没有已有矩形，用图像中心
+            cx, cy = img_w // 2, img_h // 2
+        else:
+            cx, cy = self.rubber_rect.center().x(), self.rubber_rect.center().y()
+
+        half = size // 2
+        # 限制矩形不越界
+        cx = max(half, min(cx, img_w - half - 1))
+        cy = max(half, min(cy, img_h - half - 1))
+
+        new_rect = QRect(cx - half, cy - half, size, size)
         self.rubber_rect = new_rect
         self.image_display.update_rubber(self.rubber_rect)
-        self.center_col.setText(str(center.x()))
-        self.center_row.setText(str(center.y()))
+
+        # 更新中心点和下拉框显示
+        self.center_col.setText(str(cx))
+        self.center_row.setText(str(cy))
         self.sub_size_col.setItemText(0, str(size))
 
-    # --- ImageLabel 支持画框 ---
+    # ---------- ImageLabel 支持画框 ----------
     class ImageLabel(QLabel):
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -263,7 +284,7 @@ class CalibrationApp(QWidget):
         def mouseMoveEvent(self, event):
             main_win = self.window()
             if main_win.pick_mode and self.start_pos:
-                rect = QRect(self.start_pos, event.pos()).normalized()
+                rect = self.calc_rect(main_win, event.pos())
                 self.rubber_band.setGeometry(rect)
             else:
                 super().mouseMoveEvent(event)
@@ -271,19 +292,49 @@ class CalibrationApp(QWidget):
         def mouseReleaseEvent(self, event):
             main_win = self.window()
             if main_win.pick_mode and self.start_pos and event.button() == Qt.LeftButton:
-                rect = QRect(self.start_pos, event.pos()).normalized()
+                rect = self.calc_rect(main_win, event.pos())
                 self.rubber_band.setGeometry(rect)
                 self.rubber_band.show()
+
+                # 更新主窗口矩形信息
+                main_win.rubber_rect = rect
                 center_x = rect.center().x()
                 center_y = rect.center().y()
+                side = rect.width()
+
                 main_win.center_col.setText(str(center_x))
                 main_win.center_row.setText(str(center_y))
-                size = max(rect.width(), rect.height())
-                main_win.sub_size_row.setCurrentText(str(size))
-                main_win.sub_size_col.setItemText(0, str(size))
+                main_win.sub_size_row.setCurrentText(str(side))
+                main_win.sub_size_col.setItemText(0, str(side))
+
                 self.start_pos = None
             else:
                 super().mouseReleaseEvent(event)
+
+        def calc_rect(self, main_win, current_pos):
+            """根据起点和当前鼠标位置计算正方形矩形，保证不越界"""
+            dx = current_pos.x() - self.start_pos.x()
+            dy = current_pos.y() - self.start_pos.y()
+            side = max(abs(dx), abs(dy))
+
+            img_h, img_w = main_win.image.shape[:2]
+
+            x = self.start_pos.x()
+            y = self.start_pos.y()
+            if dx < 0: x -= side
+            if dy < 0: y -= side
+
+            # 限制矩形在图像内
+            if x < 0: x = 0
+            if y < 0: y = 0
+            if x + side > img_w: side = img_w - x
+            if y + side > img_h: side = img_h - y
+
+            return QRect(x, y, side, side)
+
+        def update_rubber(self, rect):
+            self.rubber_band.setGeometry(rect)
+            self.rubber_band.show()
 
     # 打开遥感影像图片
     def open_image(self):
@@ -304,15 +355,15 @@ class CalibrationApp(QWidget):
                     return
 
                 # 生成 512x512 缩略图，加快显示
-                thumbnail = gdal.Translate(
-                    '', dataset,
-                    format='MEM', width=512, height=512
-                )
+                # thumbnail = gdal.Translate(
+                #     '', dataset,
+                #     format='MEM', width=512, height=512
+                # )
 
-                bands = min(3, thumbnail.RasterCount)
+                bands = min(3, dataset.RasterCount)
                 img_data = []
                 for i in range(1, bands + 1):
-                    band = thumbnail.GetRasterBand(i).ReadAsArray()
+                    band = dataset.GetRasterBand(i).ReadAsArray()
                     img_data.append(band)
 
                 img_data = np.dstack(img_data).astype(np.float32)
@@ -401,10 +452,6 @@ class CalibrationApp(QWidget):
                 QMessageBox.warning(self, "提示", "请输入中心像素行列号！")
                 return
 
-            # 波段
-            band_text = self.band_combo.currentText()
-            band_index = self.band_combo.currentIndex() + 1  # GDAL band 从1开始
-
             # 气溶胶光学厚度
             try:
                 aod = float(self.aod_550.text())
@@ -417,15 +464,38 @@ class CalibrationApp(QWidget):
             if dataset is None:
                 QMessageBox.critical(self, "错误", f"无法打开文件: {img_file}")
                 return
-
+                # 波段
+            band_text = self.band_combo.currentText()
+            band_index = self.band_combo.currentIndex() + 1  # GDAL band 从1开始
+            band_count = dataset.RasterCount
+            if band_count == 0:
+                QMessageBox.critical(self, "错误", f"影像文件 {img_file} 无波段！")
+                return
+            # 获取当前选择波段的波段对象
             band = dataset.GetRasterBand(band_index)
             if band is None:
                 QMessageBox.critical(self, "错误", f"无法读取第 {band_index} 波段！")
                 return
 
             half = sub_size // 2
+            # 限制中心点
+            img_h, img_w = self.image.shape[:2]
+
+            # 如果子图大于图像尺寸，自动调整子图大小
+            if sub_size > min(img_h, img_w):
+                sub_size = min(img_h, img_w)
+                half = sub_size // 2
+                self.sub_size_row.setCurrentText(str(sub_size))
+                self.sub_size_col.setItemText(0, str(sub_size))
+
+            # 限制中心点在图像内部
+            row_c = max(half, min(row_c, img_h - half - 1))
+            col_c = max(half, min(col_c, img_w - half - 1))
+
             xoff, yoff = col_c - half, row_c - half
             data = band.ReadAsArray(xoff, yoff, sub_size, sub_size).astype(float)
+            '''中心像元大小：DN_mean'''
+            center_DN = data[half, half]
 
             DN_mean = float(np.mean(data))
 
@@ -466,21 +536,24 @@ class CalibrationApp(QWidget):
                         SpcRsps.append(float(parts[band_index]))
 
             # 反射率求卷积，在卷积之前对地表反射率首先进行固定整数步长的差值
-            #  导入AFD文件
+            #  导入AFD文件 这是封装了6s辐射传输模型的dll文件
             dll_path = os.path.join(os.getcwd(), "Release/AFieldDll.dll")
             # 加载 DLL
             clr.AddReference(dll_path)
             # 导入命名空间
             import AFieldDll
             AFdll = AFieldDll.AFieldDLL()
-            StepedRef = AFdll.LinearInterPolation(List[Double](Array[Double](WaveLengthField)), List[Double](Array[Double](RefField)), WavelgtSpcRsps[0], WavelgtSpcRsps[len(WavelgtSpcRsps) - 1], 1.0)
-            #地表反射率和光谱响应函数的卷积和
-            Ref_Conv = AFdll.Convolution(StepedRef, List[Double](Array[Double](SpcRsps)), List[Double](Array[Double](WavelgtSpcRsps)))
+            StepedRef = AFdll.LinearInterPolation(List[Double](Array[Double](WaveLengthField)),
+                                                  List[Double](Array[Double](RefField)), WavelgtSpcRsps[0],
+                                                  WavelgtSpcRsps[len(WavelgtSpcRsps) - 1], 1.0)
+            # 地表反射率和光谱响应函数的卷积和
+            Ref_Conv = AFdll.Convolution(StepedRef, List[Double](Array[Double](SpcRsps)),
+                                         List[Double](Array[Double](WavelgtSpcRsps)))
             # ------------------ 5. 调用 6S (这里做个占位) ------------------
             # 实际应调用 6S 模型，这里暂时假设 Ltoa = Ref_conv * 100
             # Ltoa = Ref_conv * 100
 
-            #获取光谱响应函数所在路径
+            # 获取光谱响应函数所在路径
             SpcRspfile_txt = os.path.join(os.getcwd(), "Release/" + self.band_combo.currentText()[:3] + ".txt")
             Ltoa = AFdll.call6SDesert(
                 SpcRspfile_txt,
@@ -499,10 +572,12 @@ class CalibrationApp(QWidget):
 
             # ------------------ 7. 输出结果 ------------------
             result = (
-                f"波段: {band_text} (index={band_index})\n"
-                f"中心像素: 行={row_c}, 列={col_c}\n"
+                f"波段数量为: {band_count}\n"
+                f"波段为: {band_text} (index={band_index})\n"
+                f"区域中心像素: 行={row_c}, 列={col_c}\n"
+                f"区域中心像元为: {center_DN}\n"
                 # f"子图大小: {sub_size}×{sub_size}\n"
-                f"DN 平均值: {DN_mean}\n"
+                f"定标区域DN 平均值: {DN_mean:.6f}\n"
                 f"地表反射率卷积: {Ref_Conv}\n"
                 f"表观辐亮度 (Ltoa): {Ltoa}\n"
                 f"定标系数: {coef:.6f}\n"
@@ -526,4 +601,3 @@ if __name__ == "__main__":
     '''提交注释信息'''
     '''mamba 包管理器'''
     '''测试mamba 包管理器'''
-
