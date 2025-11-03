@@ -75,6 +75,9 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
         else:
             print("未找到‘基本信息’sheet。")
 
+        # 删除“序号”字段
+        basic_info.pop("序号", None)
+
         # ========== 3.3 提取光谱数据sheet ==========
         try:
             candidate = None
@@ -121,8 +124,8 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
 
         # ========== 7. 保存结果 ==========
         result_entry = {"文件名": os.path.basename(xlsx)}
-        result_entry.update({band_names[i]: MSR[i] for i in range(n_srf_bands)})
         result_entry.update(basic_info)  # 添加基本信息字段
+        result_entry.update({band_names[i]: MSR[i] for i in range(n_srf_bands)})
         results.append(result_entry)
 
         print(f"{os.path.basename(xlsx)} -> {MSR}")
@@ -132,7 +135,7 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
         out_df = pd.DataFrame(results)
         out_path = os.path.join(
             output_folder,
-            os.path.basename(srf_file).split(".")[0] + "_反射率结果_含基本信息.xlsx"
+            os.path.basename(srf_file).split(".")[0] + "_实测反射率结果.xlsx"
         )
         out_df.to_excel(out_path, index=False)
         print(f"\n所有文件计算完成，结果已保存至：\n{out_path}")
