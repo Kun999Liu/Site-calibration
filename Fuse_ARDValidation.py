@@ -10,12 +10,10 @@ Describe: 读取大气大气校正后的影像数据，分别将每个波段的�
 """
 import glob
 import os
-from osgeo import gdal
+import pandas as pd
 import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
-import pandas as pd
-import numpy as np
 
 # ========== 1. 读取光谱响应函数（SRF） ==========
 srf_df = pd.read_excel(r"D:\Git\Site-calibration\SpecResponse\GF2\GF-2 PMS.xlsx")
@@ -118,7 +116,7 @@ for xlsx in glob.glob(os.path.join(excel_folder, "*.xlsx")):
 # ========== 9. 导出所有结果 ==========
 if results:
     out_df = pd.DataFrame(results)
-    out_path = os.path.join(output_folder, "GF2_模拟反射率结果.xlsx")
+    out_path = os.path.join(output_folder, os.path.basename(xlsx).split(".")[0]+"反射率结果.xlsx")
     out_df.to_excel(out_path, index=False)
     print(f"\n所有文件计算完成，结果已保存至：\n{out_path}")
 else:
