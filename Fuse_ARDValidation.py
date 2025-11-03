@@ -17,6 +17,7 @@ from osgeo import gdal, osr
 import random
 warnings.filterwarnings("ignore")
 
+
 def measured_reflectance(srf_file, excel_folder, output_folder):
     # ========== 1. 读取光谱响应函数 ==========
     srf_df = pd.read_excel(srf_file)
@@ -144,7 +145,8 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
         print("未生成任何有效结果，请检查数据格式。")
         return None
 
-def get_random_reflectance(tif_path, scale_factor=10000):
+
+def get_reflectance(tif_path, scale_factor=10000):
     """
     参数：
         tif_path (str): GeoTIFF 影像文件路径
