@@ -8,6 +8,8 @@
 """
 Describe: 读取大气大气校正后的影像数据，分别将每个波段的数据跟真实值做验证
 """
+import glob
+import os
 from osgeo import gdal
 import numpy as np
 import warnings
@@ -15,61 +17,109 @@ warnings.filterwarnings("ignore")
 import pandas as pd
 import numpy as np
 
-# 读取 Excel 文件的“哈尔滨陆表反射率数据”表
-excel_path = r"C:\Users\liuku\Desktop\L-LSR-Z-HEB-M-20240903-样区12水体-V2.xlsx"
-sheet_name = "哈尔滨陆表反射率数据"
+# ========== 1. 读取光谱响应函数（SRF） ==========
+srf_df = pd.read_excel(r"D:\Git\Site-calibration\SpecResponse\GF2\GF-2 PMS.xlsx")
+srf_wl = srf_df.iloc[:, 0].values  # wavelength (nm)
+srf_matrix = srf_df.iloc[:, 1:].values
+band_names = list(srf_df.columns[1:])
+n_srf_bands = len(band_names)
 
-df = pd.read_excel(excel_path, sheet_name=sheet_name)
+print(f"光谱响应函数波段: {band_names}")
+print(f"波长范围: {srf_wl.min()} - {srf_wl.max()} nm")
 
-# 提取波长与反射率
-wavelengths = df.iloc[:, 0].values
-reflectance = df.iloc[:, 1].values
+# ========== 2. 地面实测光谱文件夹 ==========
+excel_folder = r"D:\Git\Site-calibration\excel_folder"
 
-# 定义高分二号影像的波段中心波长
-gf2_bands = {
-    "Blue": 485,
-    "Green": 555,
-    "Red": 660,
-    "NIR": 830
-}
+# ========== 3. 输出文件夹 ==========
+output_folder = r"D:\Git\Site-calibration\output_folder"
 
-# 计算匹配结果
+# ========== 3. 结果保存容器 ==========
 results = []
-for name, wl_center in gf2_bands.items():
-    idx = np.argmin(np.abs(wavelengths - wl_center))
+
+# ========== 4. 批量处理 Excel 文件 ==========
+for xlsx in glob.glob(os.path.join(excel_folder, "*.xlsx")):
+    try:
+        xl = pd.ExcelFile(xlsx)
+        # 自动选择含“波长”、“反射”、“光谱”的 sheet，否则取第二个
+        candidate = None
+        for sn in xl.sheet_names:
+            if any(k in sn for k in ["波长", "反射", "光谱"]):
+                candidate = sn
+                break
+        if candidate:
+            df_spec = pd.read_excel(xlsx, sheet_name=candidate)
+        else:
+            df_spec = pd.read_excel(xlsx, sheet_name=1 if len(xl.sheet_names) > 1 else 0)
+
+    except Exception as e:
+        print(f" 读取 Excel 失败: {xlsx}, 错误: {e}")
+        continue
+
+    # ========== 5. 提取波长与反射率 ==========
+    try:
+        wl = pd.to_numeric(df_spec.iloc[:, 0], errors='coerce').dropna().values
+        refl = pd.to_numeric(df_spec.iloc[:, 1], errors='coerce').dropna().values
+
+        # 保证两列长度一致
+        min_len = min(len(wl), len(refl))
+        wl = wl[:min_len]
+        refl = refl[:min_len]
+
+        # 限制波长范围在 SRF 的波长覆盖区间
+        valid = (wl >= srf_wl.min()) & (wl <= srf_wl.max())
+        wl = wl[valid]
+        refl = refl[valid]
+
+        if len(wl) < 5:
+            print(f"{os.path.basename(xlsx)} 有效波长点太少，跳过")
+            continue
+
+    except Exception as e:
+        print(f"解析波长/反射率错误: {xlsx}, {e}")
+        continue
+
+    # ========== 6. 插值到 SRF 波长上 ==========
+    refl_interp = np.interp(srf_wl, wl, refl, left=0, right=0)
+
+    # ========== 7. 对每个波段进行加权积分 ==========
+    simulated = []
+    for b in range(n_srf_bands):
+        resp = srf_matrix[:, b]
+        num = np.trapz(refl_interp * resp, srf_wl)
+        den = np.trapz(resp, srf_wl)
+        simul_val = np.nan if den == 0 else num / den
+        simulated.append(simul_val)
+    simulated = np.array(simulated)
+    # # ========== 7. 对每个波段进行卷积积分（MSR） ==========
+    #
+    # simulated = []
+    # dl = np.mean(np.diff(srf_wl))  # 离散波长步长
+    #
+    # for b in range(n_srf_bands):
+    #     resp = srf_matrix[:, b]
+    #
+    #     # 卷积积分：f(τ) * g(x-τ)
+    #     conv_result = np.convolve(refl_interp, resp[::-1], mode='same') * dl
+    #
+    #     # 使用卷积结果的平均值作为模拟反射率
+    #     simul_val = np.nanmean(conv_result)
+    #     simulated.append(simul_val)
+    #
+    # simulated = np.array(simulated)
+
+    # ========== 8. 保存结果 ==========
     results.append({
-        "Band": name,
-        "Center_Wavelength(nm)": wl_center,
-        "Nearest_Wavelength(nm)": wavelengths[idx],
-        "Reflectance": reflectance[idx]
+        "文件名": os.path.basename(xlsx),
+        **{band_names[i]: simulated[i] for i in range(n_srf_bands)}
     })
 
-# 转换为 DataFrame
-df_result = pd.DataFrame(results)
-print(df_result)
+    print(f"{os.path.basename(xlsx)} -> {simulated}")
 
-# # 1. 打开tif文件
-# tif_path = r"F:\BaiduNetdiskDownload\GF2\tif\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
-# dataset = gdal.Open(tif_path)
-#
-# # 2. 获取波段数
-# band_count = dataset.RasterCount
-# print(f"波段数量: {band_count}")
-#
-# # 3. 循环读取每个波段数据
-# bands_data = []
-# for i in range(1, band_count + 1):  # 波段从1开始计数
-#     band = dataset.GetRasterBand(i)
-#     data = band.ReadAsArray()
-#     bands_data.append(data)
-#     print(f"波段 {i} 的数据形状: {data.shape}, 数据类型: {data.dtype}")
-#
-# # 4. 将所有波段合并为一个三维数组 (bands, height, width)
-# image_array = np.stack(bands_data)
-# print(f"最终影像数组形状: {image_array.shape}")  # (波段数, 高, 宽)
-#
-# # 5. 如果需要读取地理信息
-# geotransform = dataset.GetGeoTransform()
-# projection = dataset.GetProjection()
-# print("仿射变换参数:", geotransform)
-# print("投影信息:", projection)
+# ========== 9. 导出所有结果 ==========
+if results:
+    out_df = pd.DataFrame(results)
+    out_path = os.path.join(output_folder, "GF2_模拟反射率结果.xlsx")
+    out_df.to_excel(out_path, index=False)
+    print(f"\n所有文件计算完成，结果已保存至：\n{out_path}")
+else:
+    print("未生成任何有效结果，请检查数据格式。")
