@@ -15,6 +15,7 @@ import numpy as np
 import warnings
 import random
 import re
+import gc  # 引入垃圾回收
 from osgeo import gdal, osr
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from scipy.stats import pearsonr
@@ -24,6 +25,8 @@ warnings.filterwarnings("ignore")
 
 def measured_reflectance(srf_file, excel_folder, output_folder):
     # ========== 1. 读取光谱响应函数 ==========
+    # 在每个文件处理前清理缓存
+    gc.collect()
     srf_df = pd.read_excel(srf_file)
     srf_wl = srf_df.iloc[:, 0].values  # wavelength (nm)
     srf_matrix = srf_df.iloc[:, 1:].values
@@ -225,7 +228,7 @@ def get_reflectance_auto(tif_path, excel_path, output_path, scale_factor=10000, 
     ].copy()
 
     if df_filtered.empty:
-        print("没有匹配的样点。")
+        print("图像范围内没有匹配的真实性检验站点。")
         return
 
     print(f"匹配样点数量: {len(df_filtered)}")
@@ -378,15 +381,14 @@ def get_reflectance_auto(tif_path, excel_path, output_path, scale_factor=10000, 
 
 # ================= 示例调用 =================
 if __name__ == "__main__":
-    # srf_path = r".\SpecResponse\GF2\GF-2 PMS.xlsx"
-    # excel_folder = r".\excel_folder"
+    srf_path = r"D:\Git\Site-calibration\SpecResponse\GF6\GF-6 PMS.xlsx"
+    excel_folder = r".\excel_folder"
+    output_folder = r".\output_folder"
+    measured_reflectance(srf_path, excel_folder, output_folder)
+
+
+    # tif_path = r"E:\GF2\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
+    # excel_path = r".\output_folder\GF-2 PMS_实测反射率结果.xlsx"
     # output_folder = r".\output_folder"
     #
-    # measured_reflectance(srf_path, excel_folder, output_folder)
-
-
-    tif_path = r"E:\GF2\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
-    excel_path = r"D:\Git\Site-calibration\output_folder\GF-2 PMS_实测反射率结果.xlsx"
-    output_folder = r"D:\Git\Site-calibration\output_folder"
-
-    df = get_reflectance_auto(tif_path, excel_path, output_folder)
+    # df = get_reflectance_auto(tif_path, excel_path, output_folder)
