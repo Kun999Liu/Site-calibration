@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+    <!-- 路径可以是相对的，也可以是绝对的 -->
+    <image_folder>./testimages/rpc_image</image_folder>
+    <excel_path>./Afield/output_folder/GF-2 PMS2_实测反射率结果.xlsx</excel_path>
+    <output_path>./reflectance_results.xlsx</output_path>
+
+    <!-- 额外参数 -->
+    <scale_factor>10000</scale_factor>
+    <time_threshold>3</time_threshold>
+</config>

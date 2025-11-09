@@ -9,6 +9,7 @@
 Describe: 读取大气大气校正后的影像数据，分别将每个波段的数据跟真实值做验证
 """
 import glob
+import sys
 import warnings
 import pandas as pd
 import numpy as np
@@ -19,7 +20,28 @@ import os
 from pathlib import Path
 from sklearn.metrics import r2_score
 warnings.filterwarnings("ignore")
+import xml.etree.ElementTree as ET
 
+
+def get_base_dir():
+    """获取程序运行的根目录（兼容PyInstaller打包）"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+
+def read_config(xml_path):
+    """读取XML配置文件并返回字典"""
+    config = {}
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        for child in root:
+            config[child.tag] = child.text.strip()
+        return config
+    except Exception as e:
+        print(f"读取配置文件失败: {e}")
+        return None
 
 def measured_reflectance(srf_file, excel_folder, output_folder):
     # ========== 1. 读取光谱响应函数 ==========
@@ -581,6 +603,66 @@ class ReflectanceExtractor_Val:
 
 # 使用示例
 if __name__ == "__main__":
+
+    # base_dir = get_base_dir()
+    #
+    # xml_path = os.path.join(base_dir, "config.xml")
+    #
+    # if not os.path.exists(xml_path):
+    #     print(f"未找到配置文件: {xml_path}")
+    #     input("按任意键退出...")
+    #     exit(1)
+    #
+    # # 读取配置
+    # config = read_config(xml_path)
+    # if not config:
+    #     print("配置文件读取失败，请检查 config.xml")
+    #     input("按任意键退出...")
+    #     exit(1)
+    #
+    #
+    # # 获取路径（自动兼容绝对/相对路径）
+    # def get_abs(path_str):
+    #     path_str = path_str.strip()
+    #     if os.path.isabs(path_str):
+    #         return path_str
+    #     else:
+    #         return os.path.abspath(os.path.join(base_dir, path_str))
+    #
+    #
+    # image_folder = get_abs(config.get("image_folder", "./images"))
+    # excel_path = get_abs(config.get("excel_path", "./input.xlsx"))
+    # output_path = get_abs(config.get("output_path", "./reflectance_results.xlsx"))
+    # scale_factor = int(config.get("scale_factor", "10000"))
+    # time_threshold = int(config.get("time_threshold", "3"))
+    #
+    # print("====== 配置参数 ======")
+    # print(f"影像文件夹: {image_folder}")
+    # print(f"Excel路径: {excel_path}")
+    # print(f"输出路径: {output_path}")
+    # print(f"比例因子: {scale_factor}")
+    # print(f"时间阈值: {time_threshold} 天")
+    # print("=====================")
+    #
+    # # 创建提取器
+    # extractor = ReflectanceExtractor_Val(
+    #     image_folder=image_folder,
+    #     scale_factor=scale_factor,
+    #     time_threshold=time_threshold
+    # )
+    #
+    # # 扫描影像并执行
+    # if extractor.scan_images() > 0:
+    #     results = extractor.process_excel(excel_path, output_path)
+    #     if len(results) > 0:
+    #         print("\n提取结果预览:")
+    #         print(results.head())
+    #     else:
+    #         print("\n未找到任何匹配点")
+    # else:
+    #     print("未找到影像文件，请检查路径")
+    #
+    # input("\n任务完成，按任意键退出...")
 
     # srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
     #     excel_folder = r".\excel_folder"
