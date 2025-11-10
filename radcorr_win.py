@@ -154,7 +154,7 @@ class PlotCanvas(QLabel):
         painter.save()
         painter.translate(15, height // 2)
         painter.rotate(-90)
-        painter.drawText(-50, 0, "响应/反射率")
+        painter.drawText(-50, 0, "反射率")
         painter.restore()
 
         # 图例
