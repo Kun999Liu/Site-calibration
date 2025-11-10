@@ -518,10 +518,10 @@ class CalibrationApp(QWidget):
 
                 # 根据波段数量选择RGB合成方案
                 if band_count >= 3:
-                    # 有3个或更多波段：B1(红), B2(绿), B3(蓝)
-                    band_indices = [1, 2, 3]  # R, G, B
+                    # 有3个或更多波段：B1(蓝), B2(绿), B3(红)
+                    band_indices = [3, 2, 1]  # R, G, B
                 elif band_count == 2:
-                    # 只有2个波段：B1(红), B2(绿), 0(蓝)
+                    # 只有2个波段：B1(蓝), B2(绿), 0(红)
                     band_indices = [1, 2, None]
                 else:
                     # 只有1个波段：灰度显示
@@ -577,14 +577,6 @@ class CalibrationApp(QWidget):
                 # 你的原循环替换成下面这段
                 for i in range(3):
                     thumb_data[:, :, i] = envi_optimized_linear(thumb_data[:, :, i])
-                # # 按通道分别拉伸，增强对比度
-                # for i in range(3):
-                #     # channel = thumb_data[:, :, i]
-                #     # # 2%线性拉伸
-                #     # p2 = np.percentile(channel, 5)
-                #     # p98 = np.percentile(channel, 98)
-                #     # channel = np.clip((channel - p2) / (p98 - p2 + 1e-6), 0, 1)
-                #     # thumb_data[:, :, i] = channel
 
                 thumb_data *= 255
                 thumb_data = thumb_data.astype(np.uint8)
@@ -682,7 +674,7 @@ class CalibrationApp(QWidget):
                 return
 
             band_text = self.band_combo.currentText()
-            band_index = self.band_combo.currentIndex() + 1
+            band_index = self.band_combo.currentIndex() + 2
             band_count = dataset.RasterCount
             if band_count == 0:
                 QMessageBox.critical(self, "错误", f"影像文件 {img_file} 无波段！")
@@ -743,7 +735,7 @@ class CalibrationApp(QWidget):
                     parts = line.strip().split(",")
                     if len(parts) > band_index + 1:
                         WavelgtSpcRsps.append(float(parts[0]))
-                        SpcRsps.append(float(parts[band_index + 1]))
+                        SpcRsps.append(float(parts[band_index]))
 
             # 导入AFD文件
             dll_path = os.path.join(os.getcwd(), "Release/AFieldDll.dll")
