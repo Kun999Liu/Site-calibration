@@ -5,15 +5,171 @@ import clr
 clr.AddReference("System")
 from System import Array, Double
 from System.Collections.Generic import List
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton,
     QFileDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QComboBox,
-    QDateEdit, QTextEdit, QMessageBox, QSplitter, QRubberBand
+    QDateEdit, QTextEdit, QMessageBox, QSplitter, QRubberBand, QDialog
 )
-from PyQt5.QtCore import QDate, Qt, QRect, QSize
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtCore import QDate, Qt, QRect, QSize, QPointF
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QFont
 from osgeo import gdal
 import numpy as np
+
+
+class SpectralCurveDialog(QDialog):
+    """光谱响应曲线弹窗 - 使用Qt原生绘图"""
+
+    def __init__(self, wavelengths, spectral_response, reflectance_curve, ref_conv, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Ref_SpcRsp_Curves")
+        self.setGeometry(100, 100, 900, 600)
+
+        self.wavelengths = wavelengths
+        self.spectral_response = spectral_response
+        self.reflectance_curve = reflectance_curve
+        self.ref_conv = ref_conv
+
+        layout = QVBoxLayout()
+
+        # 标题
+        title_label = QLabel(f'地表等效反射率为: {ref_conv:.12f}')
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("font-size: 14pt; font-weight: bold; padding: 10px;")
+        layout.addWidget(title_label)
+
+        # 绘图区域
+        self.canvas = PlotCanvas(wavelengths, spectral_response, reflectance_curve)
+        layout.addWidget(self.canvas)
+
+        # 关闭按钮
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+        self.setLayout(layout)
+
+
+class PlotCanvas(QLabel):
+    """使用Qt原生绘图的画布"""
+
+    def __init__(self, wavelengths, spectral_response, reflectance_curve):
+        super().__init__()
+        self.wavelengths = wavelengths
+        self.spectral_response = spectral_response
+        self.reflectance_curve = reflectance_curve
+
+        self.setMinimumSize(800, 500)
+        self.setStyleSheet("background-color: white; border: 1px solid gray;")
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # 设置绘图区域
+        width = self.width()
+        height = self.height()
+        margin_left = 80
+        margin_right = 40
+        margin_top = 40
+        margin_bottom = 60
+
+        plot_width = width - margin_left - margin_right
+        plot_height = height - margin_top - margin_bottom
+
+        # 绘制坐标轴
+        painter.setPen(QPen(QColor(0, 0, 0), 2))
+        # Y轴
+        painter.drawLine(margin_left, margin_top, margin_left, height - margin_bottom)
+        # X轴
+        painter.drawLine(margin_left, height - margin_bottom, width - margin_right, height - margin_bottom)
+
+        # 绘制网格和刻度
+        painter.setPen(QPen(QColor(200, 200, 200), 1))
+
+        # X轴刻度 (400-1100 nm)
+        x_min, x_max = 400, 1100
+        x_step = 100
+        for x_val in range(x_min, x_max + 1, x_step):
+            x_pos = margin_left + (x_val - x_min) / (x_max - x_min) * plot_width
+            painter.drawLine(int(x_pos), margin_top, int(x_pos), height - margin_bottom)
+            painter.setPen(QPen(QColor(0, 0, 0), 1))
+            painter.drawText(int(x_pos - 15), height - margin_bottom + 20, str(x_val))
+            painter.setPen(QPen(QColor(200, 200, 200), 1))
+
+        # Y轴刻度 (0-1.0)
+        y_min, y_max = 0, 1.0
+        y_step = 0.2
+        y_val = y_min
+        while y_val <= y_max + 0.01:
+            y_pos = height - margin_bottom - (y_val - y_min) / (y_max - y_min) * plot_height
+            painter.drawLine(margin_left, int(y_pos), width - margin_right, int(y_pos))
+            painter.setPen(QPen(QColor(0, 0, 0), 1))
+            painter.drawText(margin_left - 40, int(y_pos + 5), f'{y_val:.1f}')
+            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            y_val += y_step
+
+        # 绘制光谱响应曲线（红色）
+        if len(self.wavelengths) > 0:
+            painter.setPen(QPen(QColor(255, 0, 0), 2))
+            points = []
+            for i in range(len(self.wavelengths)):
+                x = self.wavelengths[i]
+                y = self.spectral_response[i]
+                if x_min <= x <= x_max and y_min <= y <= y_max:
+                    x_pos = margin_left + (x - x_min) / (x_max - x_min) * plot_width
+                    y_pos = height - margin_bottom - (y - y_min) / (y_max - y_min) * plot_height
+                    points.append(QPointF(x_pos, y_pos))
+
+            for i in range(len(points) - 1):
+                painter.drawLine(points[i], points[i + 1])
+
+        # 绘制地物反射率曲线（蓝色）
+        if len(self.reflectance_curve[0]) > 0:
+            painter.setPen(QPen(QColor(0, 0, 255), 2))
+            points = []
+            for i in range(len(self.reflectance_curve[0])):
+                x = self.reflectance_curve[0][i]
+                y = self.reflectance_curve[1][i]
+                if x_min <= x <= x_max and y_min <= y <= y_max:
+                    x_pos = margin_left + (x - x_min) / (x_max - x_min) * plot_width
+                    y_pos = height - margin_bottom - (y - y_min) / (y_max - y_min) * plot_height
+                    points.append(QPointF(x_pos, y_pos))
+
+            for i in range(len(points) - 1):
+                painter.drawLine(points[i], points[i + 1])
+
+        # 绘制坐标轴标签
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+        font = QFont()
+        font.setPointSize(10)
+        painter.setFont(font)
+
+        # X轴标签
+        painter.drawText(width // 2 - 30, height - 10, "波长 (nm)")
+
+        # Y轴标签（旋转）
+        painter.save()
+        painter.translate(15, height // 2)
+        painter.rotate(-90)
+        painter.drawText(-50, 0, "响应/反射率")
+        painter.restore()
+
+        # 图例
+        legend_x = width - 200
+        legend_y = 60
+
+        painter.setPen(QPen(QColor(255, 0, 0), 2))
+        painter.drawLine(legend_x, legend_y, legend_x + 40, legend_y)
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+        painter.drawText(legend_x + 50, legend_y + 5, "光谱响应曲线")
+
+        painter.setPen(QPen(QColor(0, 0, 255), 2))
+        painter.drawLine(legend_x, legend_y + 25, legend_x + 40, legend_y + 25)
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+        painter.drawText(legend_x + 50, legend_y + 30, "地物反射率谱曲线")
 
 
 class CalibrationApp(QWidget):
@@ -21,12 +177,12 @@ class CalibrationApp(QWidget):
         super().__init__()
         self.setWindowTitle("高分二号PMS1绝对辐射定标-场地定标")
         self.setGeometry(200, 100, 1000, 600)
-        self.pick_mode = False  # 是否处于画框模式
-        self.image = None  # 完整图像数据用于计算
-        self.display_scale = 1.0  # 显示缩放比例
+        self.pick_mode = False
+        self.image = None
+        self.display_scale = 1.0
         self.valid_sizes = ["3", "5", "9", "13", "19", "25", "33", "43", "51"]
         self.rubber_rect = QRect()
-        self.Ltoa = 0  # 表观辐亮度
+        self.Ltoa = 0
 
         # --- 主分割布局（左右） ---
         splitter = QSplitter(Qt.Horizontal)
@@ -62,38 +218,30 @@ class CalibrationApp(QWidget):
         self.sub_size_row = QComboBox()
         self.sub_size_row.setEditable(True)
         self.sub_size_row.addItems(self.valid_sizes)
-        self.sub_size_row.setCurrentText("5")  # 默认值
+        self.sub_size_row.setCurrentText("5")
 
         # 列方向：跟随，不可编辑
         self.sub_size_col = QComboBox()
         self.sub_size_col.setEditable(False)
-        self.sub_size_col.addItem("5")  # 初始值，保证 count() > 0
+        self.sub_size_col.addItem("5")
 
-        # 当行修改时触发校正并同步列
         def sync_sizes(text):
             try:
                 val = int(text)
             except ValueError:
-                return  # 非法输入直接忽略
+                return
 
-            # 限制在图像大小范围内
             if hasattr(self, "image") and self.image is not None:
                 h, w = self.image.shape[:2]
                 max_size = min(h, w)
-                val = max(1, min(val, max_size))  # 限制 1 ~ max_size
+                val = max(1, min(val, max_size))
 
-            # 更新行控件显示
             self.sub_size_row.blockSignals(True)
             self.sub_size_row.setCurrentText(str(val))
             self.sub_size_row.blockSignals(False)
+            self.sub_size_col.setItemText(0, str(val))
 
-            # 更新列控件显示
-            self.sub_size_col.setItemText(0, str(val))  # 直接修改第0项显示
-
-        # 连接信号
         self.sub_size_row.currentTextChanged.connect(sync_sizes)
-
-        # 初始化同步一次
         sync_sizes(self.sub_size_row.currentText())
 
         h3 = QHBoxLayout()
@@ -122,13 +270,7 @@ class CalibrationApp(QWidget):
         sensor_group = QGroupBox("2.输入传感器信息")
         sensor_layout = QHBoxLayout()
         self.band_combo = QComboBox()
-        # self.band_combo.addItems([
-        #     "443nm", "490nm", "565nm", "670nm",
-        #     "763nm", "765nm", "865nm", "910nm"
-        # ])
-        self.band_combo.addItems([
-            "B1", "B2", "B3", "B4"
-        ])
+        self.band_combo.addItems(["B1", "B2", "B3", "B4"])
         sensor_layout.addWidget(QLabel("波段:"))
         sensor_layout.addWidget(self.band_combo)
         sensor_group.setLayout(sensor_layout)
@@ -213,19 +355,16 @@ class CalibrationApp(QWidget):
         # 分割布局
         splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
-        splitter.setSizes([100, 900])  # 左右比例
+        splitter.setSizes([100, 900])
 
         # 设置主布局
         layout = QHBoxLayout()
         layout.addWidget(splitter)
         self.setLayout(layout)
 
-        # ---------- 下拉框联动矩形 ----------
         self.sub_size_row.currentTextChanged.connect(self.update_rubber_from_combo)
 
-    # --- 功能函数 ---
     def activate_pick_mode(self):
-        """进入选点模式"""
         if self.image_display.pixmap() is None:
             QMessageBox.warning(self, "错误", "请先加载一幅图像。")
             return
@@ -235,7 +374,6 @@ class CalibrationApp(QWidget):
         QMessageBox.information(self, "提示", msg)
 
     def update_rubber_from_combo(self, text):
-        """下拉框修改矩形大小"""
         if self.image is None:
             return
         try:
@@ -245,23 +383,18 @@ class CalibrationApp(QWidget):
 
         img_h, img_w = self.image.shape[:2]
 
-        # 以当前矩形中心为中心，计算新矩形（显示坐标系）
         if self.rubber_rect.isNull():
-            # 如果没有已有矩形，用图像中心
             cx, cy = int(img_w * self.display_scale / 2), int(img_h * self.display_scale / 2)
         else:
             cx, cy = self.rubber_rect.center().x(), self.rubber_rect.center().y()
 
-        # 在显示坐标系中的尺寸
         display_size = int(size * self.display_scale)
         half = display_size // 2
 
-        # 获取显示图像尺寸
         if self.image_display.pixmap():
             display_w = self.image_display.pixmap().width()
             display_h = self.image_display.pixmap().height()
 
-            # 限制矩形不越界
             cx = max(half, min(cx, display_w - half - 1))
             cy = max(half, min(cy, display_h - half - 1))
 
@@ -269,14 +402,12 @@ class CalibrationApp(QWidget):
             self.rubber_rect = new_rect
             self.image_display.update_rubber(self.rubber_rect)
 
-            # 转换回原始坐标并更新显示
             orig_cx = int(cx / self.display_scale)
             orig_cy = int(cy / self.display_scale)
             self.center_col.setText(str(orig_cx))
             self.center_row.setText(str(orig_cy))
             self.sub_size_col.setItemText(0, str(size))
 
-    # ---------- ImageLabel 支持画框 ----------
     class ImageLabel(QLabel):
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -307,10 +438,8 @@ class CalibrationApp(QWidget):
                 self.rubber_band.setGeometry(rect)
                 self.rubber_band.show()
 
-                # 更新主窗口矩形信息（显示坐标系）
                 main_win.rubber_rect = rect
 
-                # 转换到原始图像坐标系
                 scale = main_win.display_scale
                 center_x = int(rect.center().x() / scale)
                 center_y = int(rect.center().y() / scale)
@@ -326,12 +455,10 @@ class CalibrationApp(QWidget):
                 super().mouseReleaseEvent(event)
 
         def calc_rect(self, main_win, current_pos):
-            """根据起点和当前鼠标位置计算正方形矩形，保证不越界"""
             dx = current_pos.x() - self.start_pos.x()
             dy = current_pos.y() - self.start_pos.y()
             side = max(abs(dx), abs(dy))
 
-            # 获取显示图像尺寸
             if self.pixmap():
                 display_w = self.pixmap().width()
                 display_h = self.pixmap().height()
@@ -343,7 +470,6 @@ class CalibrationApp(QWidget):
             if dx < 0: x -= side
             if dy < 0: y -= side
 
-            # 限制矩形在显示图像内
             if x < 0: x = 0
             if y < 0: y = 0
             if x + side > display_w: side = display_w - x
@@ -356,7 +482,6 @@ class CalibrationApp(QWidget):
             self.rubber_band.show()
 
     def open_image(self):
-        """打开遥感影像图片"""
         file, _ = QFileDialog.getOpenFileName(
             self, "选择影像", "", "影像文件 (*.tif *.jpg *.png *.tiff)"
         )
@@ -372,46 +497,95 @@ class CalibrationApp(QWidget):
                     QMessageBox.critical(self, "错误", f"无法打开影像: {file}")
                     return
 
-                # 读取完整影像数据用于计算
-                bands = min(3, dataset.RasterCount)
+                band_count = dataset.RasterCount
+
+                # 读取完整影像数据用于计算（保持原样）
+                bands = min(3, band_count)
                 img_data = []
                 for i in range(1, bands + 1):
                     band = dataset.GetRasterBand(i).ReadAsArray()
                     img_data.append(band)
-
                 img_data = np.dstack(img_data).astype(np.float32)
-                self.image = img_data  # 保存完整数据用于计算
+                self.image = img_data
 
-                # ========== 生成缩略图用于显示 ==========
-                max_display_size = 800  # 最大显示尺寸
+                # ========== 生成RGB显示缩略图 ==========
+                max_display_size = 800
                 h, w = img_data.shape[:2]
 
-                # 计算缩放比例
                 scale = min(max_display_size / w, max_display_size / h, 1.0)
                 new_w, new_h = int(w * scale), int(h * scale)
-
-                # 保存缩放比例，用于坐标转换
                 self.display_scale = scale
 
-                # 使用 gdal.Translate 生成缩略图
-                thumbnail = gdal.Translate(
-                    '', dataset,
-                    format='MEM',
-                    width=new_w,
-                    height=new_h
-                )
+                # 根据波段数量选择RGB合成方案
+                if band_count >= 3:
+                    # 有3个或更多波段：B1(红), B2(绿), B3(蓝)
+                    band_indices = [1, 2, 3]  # R, G, B
+                elif band_count == 2:
+                    # 只有2个波段：B1(红), B2(绿), 0(蓝)
+                    band_indices = [1, 2, None]
+                else:
+                    # 只有1个波段：灰度显示
+                    band_indices = [1, 1, 1]
 
-                # 读取缩略图数据
-                thumb_data = []
-                for i in range(1, bands + 1):
-                    band = thumbnail.GetRasterBand(i).ReadAsArray()
-                    thumb_data.append(band)
+                # 读取并组合RGB通道
+                rgb_channels = []
+                for band_idx in band_indices:
+                    if band_idx is None:
+                        # 蓝色通道缺失，用0填充
+                        zero_band = np.zeros((new_h, new_w), dtype=np.float32)
+                        rgb_channels.append(zero_band)
+                    else:
+                        # 使用 gdal.Translate 缩放单个波段
+                        thumbnail = gdal.Translate(
+                            '', dataset,
+                            format='MEM',
+                            width=new_w,
+                            height=new_h,
+                            bandList=[band_idx]
+                        )
+                        band_data = thumbnail.GetRasterBand(1).ReadAsArray().astype(np.float32)
+                        rgb_channels.append(band_data)
 
-                thumb_data = np.dstack(thumb_data).astype(np.float32)
+                # 合成RGB图像
+                thumb_data = np.dstack(rgb_channels)
 
-                # 归一化显示
-                thumb_data -= thumb_data.min()
-                thumb_data /= (thumb_data.max() + 1e-6)
+                def envi_optimized_linear(channel):
+                    # 拉成一维
+                    flat = channel.flatten()
+
+                    # 计算直方图
+                    hist, bins = np.histogram(flat, bins=2000)
+
+                    # 防止某些值出现极端高频(噪点)，限制其影响
+                    threshold = np.percentile(hist, 99)
+                    hist = np.minimum(hist, threshold)
+
+                    # 累计分布
+                    cdf = np.cumsum(hist) / np.sum(hist)
+
+                    # 取最适拉伸上下限(类似 ENVI optimized linear)
+                    low_idx = np.searchsorted(cdf, 0.005)
+                    high_idx = np.searchsorted(cdf, 0.995)
+
+                    p_low = bins[low_idx]
+                    p_high = bins[min(high_idx, len(bins) - 1)]
+
+                    # 线性拉伸
+                    out = (channel - p_low) / (p_high - p_low + 1e-6)
+                    return np.clip(out, 0, 1)
+
+                # 你的原循环替换成下面这段
+                for i in range(3):
+                    thumb_data[:, :, i] = envi_optimized_linear(thumb_data[:, :, i])
+                # # 按通道分别拉伸，增强对比度
+                # for i in range(3):
+                #     # channel = thumb_data[:, :, i]
+                #     # # 2%线性拉伸
+                #     # p2 = np.percentile(channel, 5)
+                #     # p98 = np.percentile(channel, 98)
+                #     # channel = np.clip((channel - p2) / (p98 - p2 + 1e-6), 0, 1)
+                #     # thumb_data[:, :, i] = channel
+
                 thumb_data *= 255
                 thumb_data = thumb_data.astype(np.uint8)
 
@@ -423,10 +597,8 @@ class CalibrationApp(QWidget):
                 QMessageBox.critical(self, "错误", f"读取tif失败: {e}")
                 return
         else:
-            # 普通格式直接显示
             pixmap = QPixmap(file)
             if not pixmap.isNull():
-                # 缩放到合适大小
                 max_display_size = 800
                 orig_w, orig_h = pixmap.width(), pixmap.height()
 
@@ -437,7 +609,6 @@ class CalibrationApp(QWidget):
                 else:
                     self.display_scale = 1.0
 
-                # 将普通图片转换成 np.array 存储到 self.image
                 qimg = pixmap.toImage()
                 ptr = qimg.bits()
                 ptr.setsize(qimg.byteCount())
@@ -446,7 +617,6 @@ class CalibrationApp(QWidget):
         if not pixmap.isNull():
             self.image_display.setPixmap(pixmap)
             self.image_display.adjustSize()
-            # 限制 ImageLabel 的最大尺寸
             self.image_display.setMaximumSize(pixmap.size())
 
     def open_reflect(self):
@@ -462,7 +632,6 @@ class CalibrationApp(QWidget):
             tree = ET.parse(xml_file)
             root = tree.getroot()
 
-            # 示例字段（需根据实际 XML 调整）
             sun_az = root.findtext(".//SolarAzimuth") or root.findtext(".//SunAzimuth")
             sun_zn = root.findtext(".//SolarZenith") or root.findtext(".//SunZenith")
             sat_az = root.findtext(".//SatelliteAzimuth")
@@ -479,22 +648,20 @@ class CalibrationApp(QWidget):
             QMessageBox.critical(self, "错误", f"XML 解析失败: {e}")
 
     def calculate(self):
-        """计算定标系数"""
+        """计算定标系数并显示光谱曲线"""
         try:
-            # ------------------ 1. 读取基本输入 ------------------
+            # 读取基本输入
             img_file = self.image_path.text().strip()
             if not img_file:
                 QMessageBox.warning(self, "提示", "请先选择影像文件！")
                 return
 
-            # 子图大小（行列相同）
             try:
                 sub_size = int(self.sub_size_row.currentText())
             except Exception:
                 QMessageBox.warning(self, "提示", "子图像大小不正确！")
                 return
 
-            # 中心像素
             try:
                 row_c = int(self.center_row.text())
                 col_c = int(self.center_col.text())
@@ -502,62 +669,54 @@ class CalibrationApp(QWidget):
                 QMessageBox.warning(self, "提示", "请输入中心像素行列号！")
                 return
 
-            # 气溶胶光学厚度
             try:
                 aod = float(self.aod_550.text())
             except:
                 QMessageBox.warning(self, "提示", "请输入气溶胶光学厚度和几何条件信息")
                 return
 
-            # ------------------ 2. 读取子区域 DN ------------------
+            # 读取子区域 DN
             dataset = gdal.Open(img_file, gdal.GA_ReadOnly)
             if dataset is None:
                 QMessageBox.critical(self, "错误", f"无法打开文件: {img_file}")
                 return
 
-            # 波段
             band_text = self.band_combo.currentText()
-            band_index = self.band_combo.currentIndex() + 1  # GDAL band 从1开始
+            band_index = self.band_combo.currentIndex() + 1
             band_count = dataset.RasterCount
             if band_count == 0:
                 QMessageBox.critical(self, "错误", f"影像文件 {img_file} 无波段！")
                 return
 
-            # 获取当前选择波段的波段对象
             band = dataset.GetRasterBand(band_index)
             if band is None:
                 QMessageBox.critical(self, "错误", f"无法读取第 {band_index} 波段！")
                 return
 
             half = sub_size // 2
-            # 限制中心点
             img_h, img_w = self.image.shape[:2]
 
-            # 如果子图大于图像尺寸，自动调整子图大小
             if sub_size > min(img_h, img_w):
                 sub_size = min(img_h, img_w)
                 half = sub_size // 2
                 self.sub_size_row.setCurrentText(str(sub_size))
                 self.sub_size_col.setItemText(0, str(sub_size))
 
-            # 限制中心点在图像内部
             row_c = max(half, min(row_c, img_h - half - 1))
             col_c = max(half, min(col_c, img_w - half - 1))
 
             xoff, yoff = col_c - half, row_c - half
             data = band.ReadAsArray(xoff, yoff, sub_size, sub_size).astype(float)
 
-            # 中心像元大小：DN_mean
             center_DN = data[half, half]
             DN_mean = float(np.mean(data))
 
-            # ------------------ 3. 地表反射率文件 ------------------
+            # 地表反射率文件
             ref_file = self.reflect_file.text().strip()
             if not ref_file:
                 QMessageBox.warning(self, "提示", "请选择地表反射率文件！")
                 return
 
-            # 简单读取：假设 CSV 两列 (WaveLengthField, RefField)
             WaveLengthField, RefField = [], []
             with open(ref_file, "r", encoding="utf-8") as f:
                 for line in f:
@@ -571,7 +730,7 @@ class CalibrationApp(QWidget):
                 QMessageBox.warning(self, "提示", "反射率文件为空或格式错误！")
                 return
 
-            # ------------------ 4. 光谱响应函数 ------------------
+            # 光谱响应函数
             SpcRspfile = os.path.join(os.getcwd(), "./SpecRsp/GF2/GF-2 PMS1.csv")
             if not os.path.exists(SpcRspfile):
                 QMessageBox.warning(self, "提示", f"找不到光谱响应函数文件: {SpcRspfile}")
@@ -579,12 +738,12 @@ class CalibrationApp(QWidget):
 
             WavelgtSpcRsps, SpcRsps = [], []
             with open(SpcRspfile, "r", encoding="utf-8") as f:
-                next(f)  # 跳过表头
+                next(f)
                 for line in f:
                     parts = line.strip().split(",")
-                    if len(parts) > band_index:
+                    if len(parts) > band_index + 1:
                         WavelgtSpcRsps.append(float(parts[0]))
-                        SpcRsps.append(float(parts[band_index]))
+                        SpcRsps.append(float(parts[band_index + 1]))
 
             # 导入AFD文件
             dll_path = os.path.join(os.getcwd(), "Release/AFieldDll.dll")
@@ -607,25 +766,25 @@ class CalibrationApp(QWidget):
                 List[Double](Array[Double](WavelgtSpcRsps))
             )
 
-            # ------------------ 5. 调用 6S ------------------
+            # 调用 6S
             SpcRspfile_txt = os.path.join(os.getcwd(), "Release/" + self.band_combo.currentText()[:3] + ".txt")
             Ltoa = AFdll.call6SDesert(
                 SpcRspfile_txt,
-                float(self.sun_el.text() or 0),  # SolarZenith
-                float(self.sun_az.text() or 0),  # SolarAzimuth
-                float(self.sat_zn.text() or 0),  # ViewZenith
-                float(self.sat_az.text() or 0),  # ViewAzimuth
+                float(self.sun_el.text() or 0),
+                float(self.sun_az.text() or 0),
+                float(self.sat_zn.text() or 0),
+                float(self.sat_az.text() or 0),
                 self.date_edit.date().month(),
                 self.date_edit.date().day(),
                 aod,
                 Ref_Conv,
-                float(self.range_km.text() or 0)  # Altitude
+                float(self.range_km.text() or 0)
             )
 
-            # ------------------ 6. 计算定标系数 ------------------
+            # 计算定标系数
             coef = Ltoa / DN_mean
 
-            # ------------------ 7. 输出结果 ------------------
+            # 输出结果
             result = (
                 f"波段数量为: {band_count}\n"
                 f"波段为: {band_text} (index={band_index})\n"
@@ -637,6 +796,16 @@ class CalibrationApp(QWidget):
                 f"定标系数: {coef:.6f}\n"
             )
             self.result_box.setText(result)
+
+            # 显示光谱曲线弹窗
+            dialog = SpectralCurveDialog(
+                WavelgtSpcRsps,
+                SpcRsps,
+                (WaveLengthField, RefField),
+                Ref_Conv,
+                self
+            )
+            dialog.exec_()
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"计算失败: {e}")
@@ -666,6 +835,7 @@ class CalibrationApp(QWidget):
    - 输入气溶胶光学厚度
 
 5. 点击"计算定标系数"开始计算
+   - 计算完成后会显示光谱响应曲线弹窗
 
 注意事项：
 - 大尺寸图像会自动生成缩略图显示
