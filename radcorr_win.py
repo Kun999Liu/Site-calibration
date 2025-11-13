@@ -175,7 +175,7 @@ class PlotCanvas(QLabel):
 class CalibrationApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("高分二号PMS1绝对辐射定标-场地定标")
+        self.setWindowTitle("高分系列绝对辐射定标-场地定标")
         self.setGeometry(200, 100, 1000, 600)
         self.pick_mode = False
         self.image = None
@@ -852,7 +852,7 @@ class CalibrationApp(QWidget):
 
     def show_help(self):
         help_text = """
-高分二号PMS1绝对辐射定标工具使用说明：
+高分系列绝对辐射定标工具使用说明：
 
 1. 选择图像信息
    - 点击"选择影像"加载遥感图像
