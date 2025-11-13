@@ -184,6 +184,13 @@ class CalibrationApp(QWidget):
         self.rubber_rect = QRect()
         self.Ltoa = 0
 
+        # 卫星传感器配置
+        self.satellite_config = {
+            "GF-1 PMSA": ["B1", "B2", "B3", "B4"],
+            "GF-2 PMS1": ["B1", "B2", "B3", "B4"],
+            "GF-7 PMS": ["B1", "B2", "B3", "B4"]
+        }
+
         # --- 主分割布局（左右） ---
         splitter = QSplitter(Qt.Horizontal)
 
@@ -266,13 +273,28 @@ class CalibrationApp(QWidget):
             img_layout.addLayout(h)
         image_group.setLayout(img_layout)
 
-        # 2. 传感器信息
+        # 2. 传感器信息 - 新增卫星传感器选择
         sensor_group = QGroupBox("2.输入传感器信息")
-        sensor_layout = QHBoxLayout()
+        sensor_layout = QVBoxLayout()
+
+        # 卫星传感器选择
+        sat_layout = QHBoxLayout()
+        sat_layout.addWidget(QLabel("卫星传感器:"))
+        self.satellite_combo = QComboBox()
+        self.satellite_combo.addItems(list(self.satellite_config.keys()))
+        self.satellite_combo.setCurrentText("GF-2 PMS1")
+        self.satellite_combo.currentTextChanged.connect(self.update_bands)
+        sat_layout.addWidget(self.satellite_combo)
+
+        # 波段选择
+        band_layout = QHBoxLayout()
+        band_layout.addWidget(QLabel("波段:"))
         self.band_combo = QComboBox()
-        self.band_combo.addItems(["B1", "B2", "B3", "B4"])
-        sensor_layout.addWidget(QLabel("波段:"))
-        sensor_layout.addWidget(self.band_combo)
+        self.update_bands("GF-2 PMS1")  # 初始化波段
+        band_layout.addWidget(self.band_combo)
+
+        sensor_layout.addLayout(sat_layout)
+        sensor_layout.addLayout(band_layout)
         sensor_group.setLayout(sensor_layout)
 
         # 3. 几何条件信息
@@ -364,13 +386,19 @@ class CalibrationApp(QWidget):
 
         self.sub_size_row.currentTextChanged.connect(self.update_rubber_from_combo)
 
+    def update_bands(self, satellite_name):
+        """根据选择的卫星更新波段下拉框"""
+        self.band_combo.clear()
+        bands = self.satellite_config.get(satellite_name, ["B1", "B2", "B3", "B4"])
+        self.band_combo.addItems(bands)
+
     def activate_pick_mode(self):
         if self.image_display.pixmap() is None:
             QMessageBox.warning(self, "错误", "请先加载一幅图像。")
             return
         self.pick_mode = not self.pick_mode
         self.setCursor(Qt.CrossCursor if self.pick_mode else Qt.ArrowCursor)
-        msg = "画框模式已开启，请拖动鼠标选择区域。" if self.pick_mode else "画框模式已关闭。"
+        msg = "画框模式已开启,请拖动鼠标选择区域。" if self.pick_mode else "画框模式已关闭。"
         QMessageBox.information(self, "提示", msg)
 
     def update_rubber_from_combo(self, text):
@@ -639,6 +667,20 @@ class CalibrationApp(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"XML 解析失败: {e}")
 
+    def get_spectral_response_file(self):
+        """根据选择的卫星传感器返回对应的光谱响应函数文件路径"""
+        satellite = self.satellite_combo.currentText()
+
+        # 文件名映射
+        file_mapping = {
+            "GF-1 PMSA": "GF-1 PMSA.csv",
+            "GF-2 PMS1": "GF-2 PMS1.csv",
+            "GF-7 PMS": "GF-7 PMS.csv"
+        }
+
+        filename = file_mapping.get(satellite, "GF-2 PMS1.csv")
+        return os.path.join(os.getcwd(), f"./Release/{filename}")
+
     def calculate(self):
         """计算定标系数并显示光谱曲线"""
         try:
@@ -674,7 +716,7 @@ class CalibrationApp(QWidget):
                 return
 
             band_text = self.band_combo.currentText()
-            band_index = self.band_combo.currentIndex() + 2
+            band_index = self.band_combo.currentIndex() + 1
             band_count = dataset.RasterCount
             if band_count == 0:
                 QMessageBox.critical(self, "错误", f"影像文件 {img_file} 无波段！")
@@ -722,8 +764,8 @@ class CalibrationApp(QWidget):
                 QMessageBox.warning(self, "提示", "反射率文件为空或格式错误！")
                 return
 
-            # 光谱响应函数
-            SpcRspfile = os.path.join(os.getcwd(), "./SpecRsp/GF2/GF-2 PMS1.csv")
+            # 光谱响应函数 - 使用新的文件路径方法
+            SpcRspfile = self.get_spectral_response_file()
             if not os.path.exists(SpcRspfile):
                 QMessageBox.warning(self, "提示", f"找不到光谱响应函数文件: {SpcRspfile}")
                 return
@@ -735,7 +777,7 @@ class CalibrationApp(QWidget):
                     parts = line.strip().split(",")
                     if len(parts) > band_index + 1:
                         WavelgtSpcRsps.append(float(parts[0]))
-                        SpcRsps.append(float(parts[band_index]))
+                        SpcRsps.append(float(parts[band_index + 1]))
 
             # 导入AFD文件
             dll_path = os.path.join(os.getcwd(), "Release/AFieldDll.dll")
@@ -758,8 +800,10 @@ class CalibrationApp(QWidget):
                 List[Double](Array[Double](WavelgtSpcRsps))
             )
 
-            # 调用 6S
-            SpcRspfile_txt = os.path.join(os.getcwd(), "Release/" + self.band_combo.currentText()[:3] + ".txt")
+            # 调用 6S - 使用波段名称生成文件路径
+            SpcRspfile_txt = os.path.join(os.getcwd(),
+                                          "Release/" + os.path.basename(SpcRspfile).split(".")[
+                                              0] + "/" + band_text + ".txt")
             Ltoa = AFdll.call6SDesert(
                 SpcRspfile_txt,
                 float(self.sun_el.text() or 0),
@@ -777,7 +821,9 @@ class CalibrationApp(QWidget):
             coef = Ltoa / DN_mean
 
             # 输出结果
+            satellite_name = self.satellite_combo.currentText()
             result = (
+                f"卫星传感器: {satellite_name}\n"
                 f"波段数量为: {band_count}\n"
                 f"波段为: {band_text} (index={band_index})\n"
                 f"区域中心像素: 行={row_c}, 列={col_c}\n"
@@ -815,7 +861,8 @@ class CalibrationApp(QWidget):
    - 或手动输入中心行列和子图像大小
 
 2. 输入传感器信息
-   - 选择需要定标的波段
+   - 选择卫星传感器（GF-1 PMSA、GF-2 PMS1、GF-7 PMS）
+   - 选择需要定标的波段（波段数量根据传感器自动调整）
 
 3. 输入几何条件信息
    - 手动输入太阳方位角、天顶角
@@ -833,6 +880,7 @@ class CalibrationApp(QWidget):
 - 大尺寸图像会自动生成缩略图显示
 - 坐标会自动在显示坐标和原始坐标间转换
 - 确保Release文件夹包含所需的光谱响应函数和DLL文件
+- 不同卫星传感器对应不同的光谱响应函数文件
         """
         QMessageBox.information(self, "帮助", help_text)
 

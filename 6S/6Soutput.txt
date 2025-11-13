@@ -9,7 +9,7 @@
 *                       -------------------------------                       *
 *                       user defined conditions                               *
 *                                                                             *
-*   month: 11 day :  10                                                       *
+*   month: 11 day :  13                                                       *
 *   solar zenith angle:    1.00 deg  solar azimuthal angle:        1.00 deg   *
 *   view zenith angle:     1.00 deg  view azimuthal angle:         1.00 deg   *
 *   scattering angle:    180.00 deg  azimuthal angle difference:   0.00 deg   *
@@ -51,7 +51,7 @@
 *                                                                             *
 *                         integrated values of  :                             *
 *                         --------------------                                *
-*       apparent reflectance  0.2127    appar. rad.(w/m2/sr/mic)     38.115   *
+*       apparent reflectance  0.2127    appar. rad.(w/m2/sr/mic)     38.168   *
 *                   total gaseous transmittance  0.356                        *
 *                                                                             *
 *******************************************************************************
@@ -74,14 +74,14 @@
 *                         -----------------------                             *
 *                      irr. at ground level (w/m2/mic)                        *
 *     direct solar irr.    atm. diffuse irr.    environment  irr              *
-*              35.033             122.764              47.166                 *
+*              35.082             122.935              47.232                 *
 *                      rad at satel. level (w/m2/sr/mic)                      *
 *     atm. intrin. rad.    background  rad.    pixel  radiance                *
-*              18.867              14.896               4.352                 *
+*              18.893              14.917               4.358                 *
 *                                                                             *
 *                                                                             *
 *          int. funct filter (in mic)              int. sol. spect (in w/m2)  *
-*             0.0292337                                  16.462               *
+*             0.0292337                                  16.485               *
 *                                                                             *
 *******************************************************************************
  
@@ -132,7 +132,7 @@
 *       input apparent reflectance            :    0.004                      *
 *       measured radiance [w/m2/sr/mic]       :    0.659                      *
 *       atmospherically corrected reflectance :   -1.199                      *
-*       coefficients xa xb xc                 :  0.04572  2.56025  0.36700    *
+*       coefficients xa xb xc                 :  0.04566  2.56025  0.36700    *
 *       y=xa*(measured radiance)-xb;  acr=y/(1.+xc*y)                         *
 *******************************************************************************
 
