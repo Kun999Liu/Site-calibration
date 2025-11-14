@@ -1,1 +1,0 @@
-D:\OneDrive_files\OneDrive\code\Afield\Release\6S\my6s.exe<D:\OneDrive_files\OneDrive\code\Afield\Release\6S\6Sinput.txt>D:\OneDrive_files\OneDrive\code\Afield\Release\6S\6Soutput.txt

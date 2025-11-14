@@ -337,7 +337,7 @@ class CalibrationApp(QWidget):
 
         self.aod_550 = QLineEdit()
         h11 = QHBoxLayout()
-        h11.addWidget(QLabel("气溶胶光学厚度:"))
+        h11.addWidget(QLabel("气溶胶光学厚度(550nm):"))
         h11.addWidget(self.aod_550)
 
         atm_layout.addLayout(h10)
@@ -871,7 +871,7 @@ class CalibrationApp(QWidget):
 
 4. 输入实测地气参数
    - 选择地表反射率文件（txt/csv格式）
-   - 输入气溶胶光学厚度
+   - 输入气溶胶光学厚度(550nm波段下的气溶胶厚度)
 
 5. 点击"计算定标系数"开始计算
    - 计算完成后会显示光谱响应曲线弹窗
