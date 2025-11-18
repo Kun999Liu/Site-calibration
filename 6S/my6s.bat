@@ -1,1 +1,1 @@
-D:\Git\Site-calibration\6S\my6s.exe<D:\Git\Site-calibration\6S\6Sinput.txt>D:\Git\Site-calibration\6S\6Soutput.txt
+C:\Users\liuku\Desktop\Afield\6S\my6s.exe<C:\Users\liuku\Desktop\Afield\6S\6Sinput.txt>C:\Users\liuku\Desktop\Afield\6S\6Soutput.txt

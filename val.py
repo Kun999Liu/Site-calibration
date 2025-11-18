@@ -491,10 +491,8 @@ class ReflectanceExtractor_Val:
 
                             if not np.isnan(measured_val):
                                 diff = extracted_val - measured_val
-                                diff_ratio = diff / measured_val if measured_val != 0 else np.nan
 
                                 result[f'{band_name}_差值'] = diff
-                                result[f'{band_name}_差值/实测'] = diff_ratio
 
                                 point_measured.append(measured_val)
                                 point_extracted.append(extracted_val)
@@ -503,41 +501,47 @@ class ReflectanceExtractor_Val:
                                 all_extracted.append(extracted_val)
 
                                 print(f"      {band_name}: 实测={measured_val:.6f}, "
-                                      f"提取={extracted_val:.6f}, 差值={diff:.6f}, "
-                                      f"差值/实测={diff_ratio:.4f}")
+                                      f"提取={extracted_val:.6f}, 差值={diff:.6f} ")
 
-                    # 计算该点的R²（基于该点的4个波段）
+                    # 按顺序计算统计指标：均方根误差 -> 平均绝对百分比误差 -> 相关系数 -> R²
                     if len(point_measured) >= 2:
                         try:
-                            point_r2 = r2_score(point_measured, point_extracted)
+                            # 1. 均方根误差 (RMSE)
                             point_rmse = np.sqrt(np.mean(
                                 (np.array(point_measured) - np.array(point_extracted)) ** 2
                             ))
+                            result['均方根误差'] = point_rmse
+                            print(f"      均方根误差 = {point_rmse:.6f}")
+
+                            # 2. 平均绝对百分比误差 (MAPE)
                             point_mape = np.mean([
                                 abs((m - e) / m) for m, e in zip(point_measured, point_extracted) if m != 0
                             ])
-
-                            result['R²'] = point_r2
-                            result['均方根误差'] = point_rmse
                             result['平均绝对百分比误差'] = point_mape
-                            result['相关系数'] = np.corrcoef(point_measured, point_extracted)[0, 1]
-
-                            print(f"      该点R² = {point_r2:.6f}")
-                            print(f"      均方根误差 = {point_rmse:.6f}")
                             print(f"      平均绝对百分比误差 = {point_mape:.4f}")
 
+                            # 3. 相关系数 (r)
+                            point_corr = np.corrcoef(point_measured, point_extracted)[0, 1]
+                            result['相关系数'] = point_corr
+                            print(f"      相关系数 = {point_corr:.6f}")
+
+                            # 4. R² = 相关系数²
+                            point_r2 = point_corr ** 2
+                            result['R²'] = point_r2
+                            print(f"      R² = {point_r2:.6f} (相关系数²)")
+
                         except Exception as e:
-                            print(f"      R²计算失败: {e}")
-                            result['R²'] = np.nan
+                            print(f"      统计指标计算失败: {e}")
                             result['均方根误差'] = np.nan
                             result['平均绝对百分比误差'] = np.nan
                             result['相关系数'] = np.nan
+                            result['R²'] = np.nan
                     else:
-                        result['R²'] = np.nan
                         result['均方根误差'] = np.nan
                         result['平均绝对百分比误差'] = np.nan
                         result['相关系数'] = np.nan
-                        print(f"      该点数据不足，无法计算R²")
+                        result['R²'] = np.nan
+                        print(f"      该点数据不足，无法计算统计指标")
 
                     results.append(result)
 
@@ -555,58 +559,13 @@ class ReflectanceExtractor_Val:
         print(f"{'=' * 60}")
 
         if len(results) > 0:
-            # 1. 各点R²统计
             valid_r2 = result_df['R²'].dropna()
             if len(valid_r2) > 0:
-                print(f"\n各采样点R²统计:")
-                print(f"  平均R²: {valid_r2.mean():.6f}")
-                print(f"  中位数R²: {valid_r2.median():.6f}")
-                print(f"  最大R²: {valid_r2.max():.6f}")
-                print(f"  最小R²: {valid_r2.min():.6f}")
-                print(f"  标准差: {valid_r2.std():.6f}")
-                print(f"  有效点数: {len(valid_r2)}")
-
                 print(f"\nR²分布:")
                 print(f"  R² > 0.90: {(valid_r2 > 0.90).sum()} 个点")
                 print(f"  0.75 < R² ≤ 0.90: {((valid_r2 > 0.75) & (valid_r2 <= 0.90)).sum()} 个点")
                 print(f"  0.50 < R² ≤ 0.75: {((valid_r2 > 0.50) & (valid_r2 <= 0.75)).sum()} 个点")
                 print(f"  R² ≤ 0.50: {(valid_r2 <= 0.50).sum()} 个点")
-
-            # 2. 均方根误差统计
-            valid_rmse = result_df['均方根误差'].dropna()
-            if len(valid_rmse) > 0:
-                print(f"\n均方根误差统计:")
-                print(f"  平均RMSE: {valid_rmse.mean():.6f}")
-                print(f"  中位数RMSE: {valid_rmse.median():.6f}")
-                print(f"  最大RMSE: {valid_rmse.max():.6f}")
-                print(f"  最小RMSE: {valid_rmse.min():.6f}")
-
-            # 3. 平均绝对百分比误差统计
-            valid_mape = result_df['平均绝对百分比误差'].dropna()
-            if len(valid_mape) > 0:
-                print(f"\n平均绝对百分比误差统计:")
-                print(f"  平均MAPE: {valid_mape.mean():.4f} ({valid_mape.mean() * 100:.2f}%)")
-                print(f"  中位数MAPE: {valid_mape.median():.4f} ({valid_mape.median() * 100:.2f}%)")
-
-        # 4. 总体R²（所有点所有波段）
-        if len(all_measured) > 0:
-            measured_array = np.array(all_measured)
-            extracted_array = np.array(all_extracted)
-
-            mask = ~(np.isnan(measured_array) | np.isnan(extracted_array))
-            measured_array = measured_array[mask]
-            extracted_array = extracted_array[mask]
-
-            if len(measured_array) > 0:
-                overall_r2 = r2_score(measured_array, extracted_array)
-                overall_rmse = np.sqrt(np.mean((measured_array - extracted_array) ** 2))
-
-                print(f"\n{'=' * 60}")
-                print(f"所有点所有波段的总体统计:")
-                print(f"  总体R² = {overall_r2:.6f}")
-                print(f"  总体RMSE = {overall_rmse:.6f}")
-                print(f"  总样本数 = {len(measured_array)}")
-                print(f"  相关系数 = {np.corrcoef(measured_array, extracted_array)[0, 1]:.6f}")
 
         # 保存结果
         if output_path and len(results) > 0:
@@ -616,7 +575,7 @@ class ReflectanceExtractor_Val:
             for band in ['B1', 'B2', 'B3', 'B4']:
                 cols_order.extend([f'{band}_实测', f'{band}_提取', f'{band}_差值', f'{band}_差值/实测'])
 
-            cols_order.extend(['R²', '相关系数', '均方根误差', '平均绝对百分比误差', '匹配影像'])
+            cols_order.extend(['均方根误差', '平均绝对百分比误差', '相关系数', 'R²', '匹配影像'])
 
             cols_exist = [c for c in cols_order if c in result_df.columns]
             result_df = result_df[cols_exist]
@@ -696,7 +655,7 @@ if __name__ == "__main__":
 
     # ========== 方式3: 直接处理（推荐） ==========
     # 配置路径
-    image_folder = r"E:\testimage"  # 影像文件夹
+    image_folder = r"C:\Users\liuku\Desktop\123"  # 影像文件夹
     excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"  # 实测反射率Excel
     output_path = r".\reflectance_results.xlsx"  # 输出结果
 
