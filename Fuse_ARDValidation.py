@@ -671,8 +671,8 @@ if __name__ == "__main__":
     #     measured_reflectance(srf_path, excel_folder, output_folder)
 
     # 配置文件路径
-    image_folder = r"C:\Users\liuku\Desktop\testimages\rpc_image"
-    excel_path = r"C:\Users\liuku\Desktop\Afield\output_folder\GF-2 PMS2_实测反射率结果.xlsx"
+    image_folder = r"E:\testimage"
+    excel_path = r".\output_folder\test.xlsx"
     output_path = r".\reflectance_results.xlsx"
 
     # 创建提取器
