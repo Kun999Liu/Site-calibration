@@ -6,7 +6,7 @@
 # @Software: PyCharm
 
 """
-Describe: 读取大气大气校正后的影像数据，分别将每个波段的数据跟真实值做验证
+Describe: 读取大气校正后的影像数据，分别将每个波段的数据跟真实值做验证
 """
 import glob
 import sys
@@ -19,6 +19,7 @@ import re
 import os
 from pathlib import Path
 from sklearn.metrics import r2_score
+
 warnings.filterwarnings("ignore")
 import xml.etree.ElementTree as ET
 
@@ -29,6 +30,7 @@ def get_base_dir():
         return os.path.dirname(sys.executable)
     else:
         return os.path.dirname(os.path.abspath(__file__))
+
 
 def read_config(xml_path):
     """读取XML配置文件并返回字典"""
@@ -43,7 +45,9 @@ def read_config(xml_path):
         print(f"读取配置文件失败: {e}")
         return None
 
+
 def measured_reflectance(srf_file, excel_folder, output_folder):
+    """计算实测反射率的光谱响应函数卷积"""
     # ========== 1. 读取光谱响应函数 ==========
     srf_df = pd.read_excel(srf_file)
     srf_wl = srf_df.iloc[:, 0].values  # wavelength (nm)
@@ -75,20 +79,16 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
             print(f"读取 Excel 失败: {os.path.basename(xlsx)}，错误: {e}")
             continue
 
-        # ========== 3.2 提取“基本信息”sheet ==========
-        # 读取基本信息sheet
+        # ========== 3.2 提取"基本信息"sheet ==========
         basic_info = {}
         basic_sheet = next((sn for sn in sheet_names if "基本信息" in sn), None)
         if basic_sheet:
             try:
-                # 尝试方法 1: 字段名在第一行，数据在第二行
                 df_basic = pd.read_excel(xlsx, sheet_name=basic_sheet, header=0)
                 if df_basic.shape[0] > 0:
                     basic_info = df_basic.iloc[0].to_dict()
-                    # 转字符串，去掉 nan
                     basic_info = {str(k): str(v) for k, v in basic_info.items() if pd.notna(v)}
                 else:
-                    # 方法 2: 两列形式
                     df_basic2 = pd.read_excel(xlsx, sheet_name=basic_sheet, header=None)
                     for i in range(len(df_basic2)):
                         if df_basic2.shape[1] >= 2:
@@ -99,9 +99,8 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
             except Exception as e:
                 print(f"读取基本信息失败: {e}")
         else:
-            print("未找到‘基本信息’sheet。")
+            print("未找到'基本信息'sheet。")
 
-        # 删除“序号”字段
         basic_info.pop("序号", None)
 
         # ========== 3.3 提取光谱数据sheet ==========
@@ -150,7 +149,7 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
 
         # ========== 7. 保存结果 ==========
         result_entry = {"文件名": os.path.basename(xlsx)}
-        result_entry.update(basic_info)  # 添加基本信息字段
+        result_entry.update(basic_info)
         result_entry.update({band_names[i]: MSR[i] for i in range(n_srf_bands)})
         results.append(result_entry)
 
@@ -170,6 +169,7 @@ def measured_reflectance(srf_file, excel_folder, output_folder):
         print("未生成任何有效结果，请检查数据格式。")
         return None
 
+
 class ReflectanceExtractor_Val:
     """高分2号影像反射率提取工具 - 根据影像范围查找点"""
 
@@ -178,11 +178,12 @@ class ReflectanceExtractor_Val:
         初始化
         :param image_folder: 包含多个影像的文件夹路径
         :param scale_factor: 反射率比例因子，默认10000
+        :param time_threshold: 时间匹配阈值（天）
         """
         self.image_folder = image_folder
-        self.images = []  # 存储影像信息列表
-        self.time_threshold = time_threshold  # 时间匹配阈值（天）
-        self.scale_factor = scale_factor  # 反射率比例因子
+        self.images = []
+        self.time_threshold = time_threshold
+        self.scale_factor = scale_factor
 
     def scan_images(self):
         """扫描文件夹中的所有影像文件并获取其时空范围"""
@@ -194,8 +195,6 @@ class ReflectanceExtractor_Val:
             for file in files:
                 if any(file.lower().endswith(ext) for ext in image_extensions):
                     image_path = os.path.join(root, file)
-
-                    # 获取影像信息
                     image_info = self.get_image_info(image_path, file)
                     if image_info:
                         self.images.append(image_info)
@@ -212,43 +211,31 @@ class ReflectanceExtractor_Val:
         return len(self.images)
 
     def get_image_info(self, image_path, filename):
-        """
-        获取影像的时间和经纬度范围信息
-        """
+        """获取影像的时间和经纬度范围信息"""
         try:
             dataset = gdal.Open(image_path)
             if dataset is None:
                 return None
 
-            # 获取影像基本信息
             cols = dataset.RasterXSize
             rows = dataset.RasterYSize
             bands = dataset.RasterCount
             geotransform = dataset.GetGeoTransform()
 
-            # 提取日期
             date = self.extract_date_from_filename(filename)
 
-            # 获取影像四角坐标（投影坐标系）
             x_min = geotransform[0]
             y_max = geotransform[3]
             x_max = x_min + cols * geotransform[1]
             y_min = y_max + rows * geotransform[5]
 
-            # 转换为经纬度
             try:
                 import pyproj
-
-                # 假设影像是UTM 49N投影（根据实际情况调整）
                 utm49n = pyproj.CRS('EPSG:32649')
                 wgs84 = pyproj.CRS('EPSG:4326')
-
                 transformer = pyproj.Transformer.from_crs(utm49n, wgs84, always_xy=True)
-
-                # 转换四角坐标
                 lon_min, lat_min = transformer.transform(x_min, y_min)
                 lon_max, lat_max = transformer.transform(x_max, y_max)
-
             except Exception as e:
                 print(f"  警告: 坐标转换失败 ({filename}): {e}")
                 dataset = None
@@ -292,11 +279,9 @@ class ReflectanceExtractor_Val:
                         year = date_str[0:4]
                         month = date_str[4:6]
                         day = date_str[6:8]
-
                     return datetime(int(year), int(month), int(day))
                 except:
                     continue
-
         return None
 
     def parse_dms_to_decimal(self, dms_str):
@@ -317,23 +302,18 @@ class ReflectanceExtractor_Val:
                 raise ValueError(f"无法解析坐标: {dms_str}")
 
     def find_points_in_image(self, image_info, points_df, lon_col, lat_col, time_col):
-        """
-        查找在影像时空范围内的点
-        """
+        """查找在影像时空范围内的点"""
         matched_points = []
 
         for idx, row in points_df.iterrows():
             try:
-                # 解析经纬度
                 lon = self.parse_dms_to_decimal(row[lon_col])
                 lat = self.parse_dms_to_decimal(row[lat_col])
 
-                # 检查空间范围
                 if not (image_info['lon_min'] <= lon <= image_info['lon_max'] and
                         image_info['lat_min'] <= lat <= image_info['lat_max']):
                     continue
 
-                # 检查时间范围（如果有测量时间）
                 if time_col and pd.notna(row[time_col]):
                     measure_time = self.parse_time(row[time_col])
                     if measure_time and image_info['date']:
@@ -368,10 +348,8 @@ class ReflectanceExtractor_Val:
         """将经纬度转换为像素坐标"""
         try:
             import pyproj
-
             wgs84 = pyproj.CRS('EPSG:4326')
             utm49n = pyproj.CRS('EPSG:32649')
-
             transformer = pyproj.Transformer.from_crs(wgs84, utm49n, always_xy=True)
             x, y = transformer.transform(lon, lat)
 
@@ -384,7 +362,6 @@ class ReflectanceExtractor_Val:
             col = int((x - x_origin) / pixel_width)
             row = int((y - y_origin) / pixel_height)
 
-            # 检查范围
             if 0 <= col < image_info['cols'] and 0 <= row < image_info['rows']:
                 return col, row
             else:
@@ -395,7 +372,7 @@ class ReflectanceExtractor_Val:
             return None, None
 
     def extract_reflectance(self, image_path, col, row):
-        """提取指定像素位置的各波段反射率（除以10000）"""
+        """提取指定像素位置的各波段反射率"""
         dataset = gdal.Open(image_path)
         if dataset is None:
             return None
@@ -406,17 +383,13 @@ class ReflectanceExtractor_Val:
         for band_idx in range(1, bands + 1):
             band = dataset.GetRasterBand(band_idx)
             data = band.ReadAsArray(col, row, 1, 1)
-            # 除以比例因子
             reflectances.append(float(data[0, 0]) / self.scale_factor)
 
         dataset = None
         return reflectances
 
     def process_excel(self, excel_path, output_path=None):
-        """
-        处理Excel文件：根据影像范围查找点并提取反射率
-        """
-        # 读取Excel
+        """处理Excel文件：根据影像范围查找点并提取反射率"""
         df = pd.read_excel(excel_path)
 
         print(f"\n读取到 {len(df)} 个采样点")
@@ -459,14 +432,12 @@ class ReflectanceExtractor_Val:
             print(f"处理影像 {img_idx + 1}/{len(self.images)}: {image_info['filename']}")
             print(f"{'=' * 60}")
 
-            # 查找在该影像范围内的点
             matched_points = self.find_points_in_image(
                 image_info, df, lon_col, lat_col, time_col
             )
 
             print(f"找到 {len(matched_points)} 个匹配点")
 
-            # 处理每个匹配点
             for point_idx, (idx, row, lon, lat) in enumerate(matched_points):
                 try:
                     point_name = row[name_col] if name_col and pd.notna(row[name_col]) else f"点{idx + 1}"
@@ -478,14 +449,12 @@ class ReflectanceExtractor_Val:
                     print(f"\n  处理点 {point_idx + 1}: {point_name}")
                     print(f"    坐标: ({lon:.6f}°, {lat:.6f}°)")
 
-                    # 转换为像素坐标
                     col, row_px = self.lonlat_to_pixel(image_info, lon, lat)
 
                     if col is None or row_px is None:
                         print(f"    ✗ 坐标转换失败")
                         continue
 
-                    # 提取反射率
                     reflectances = self.extract_reflectance(image_info['path'], col, row_px)
 
                     if not reflectances:
@@ -494,7 +463,6 @@ class ReflectanceExtractor_Val:
 
                     print(f"    ✓ 成功提取反射率")
 
-                    # 构建结果
                     result = {
                         '点位': idx + 1,
                         '名称': point_name,
@@ -507,7 +475,6 @@ class ReflectanceExtractor_Val:
                         '匹配影像': image_info['filename']
                     }
 
-                    # 添加波段反射率
                     band_names = ['B1', 'B2', 'B3', 'B4'] if len(reflectances) >= 4 else ['PAN']
 
                     point_measured = []
@@ -515,34 +482,61 @@ class ReflectanceExtractor_Val:
 
                     for i, band_name in enumerate(band_names):
                         if i < len(reflectances) and band_name in measured_cols:
-                            # 实测值
                             measured_val = float(row[measured_cols[band_name]]) if pd.notna(
                                 row[measured_cols[band_name]]) else np.nan
-
-                            # 提取值（已除以10000）
                             extracted_val = reflectances[i]
 
                             result[f'{band_name}_实测'] = measured_val
                             result[f'{band_name}_提取'] = extracted_val
 
-                            # 存储该点的四个波段数据用于计算该点的R²
                             if not np.isnan(measured_val):
+                                diff = extracted_val - measured_val
+                                diff_ratio = diff / measured_val if measured_val != 0 else np.nan
+
+                                result[f'{band_name}_差值'] = diff
+                                result[f'{band_name}_差值/实测'] = diff_ratio
+
                                 point_measured.append(measured_val)
                                 point_extracted.append(extracted_val)
 
-                                # 同时存储用于总体R²计算
                                 all_measured.append(measured_val)
                                 all_extracted.append(extracted_val)
 
-                            print(f"      {band_name}: 实测={measured_val:.6f}, 提取={extracted_val:.6f}")
+                                print(f"      {band_name}: 实测={measured_val:.6f}, "
+                                      f"提取={extracted_val:.6f}, 差值={diff:.6f}, "
+                                      f"差值/实测={diff_ratio:.4f}")
 
-                    # 计算该点的R²（基于该点的四个波段）
-                    if len(point_measured) >= 2:  # 至少需要2个数据点才能计算R²
-                        point_r2 = r2_score(point_measured, point_extracted)
-                        result['R²'] = point_r2
-                        print(f"      该点R² = {point_r2:.6f}")
+                    # 计算该点的R²（基于该点的4个波段）
+                    if len(point_measured) >= 2:
+                        try:
+                            point_r2 = r2_score(point_measured, point_extracted)
+                            point_rmse = np.sqrt(np.mean(
+                                (np.array(point_measured) - np.array(point_extracted)) ** 2
+                            ))
+                            point_mape = np.mean([
+                                abs((m - e) / m) for m, e in zip(point_measured, point_extracted) if m != 0
+                            ])
+
+                            result['R²'] = point_r2
+                            result['均方根误差'] = point_rmse
+                            result['平均绝对百分比误差'] = point_mape
+                            result['相关系数'] = np.corrcoef(point_measured, point_extracted)[0, 1]
+
+                            print(f"      该点R² = {point_r2:.6f}")
+                            print(f"      均方根误差 = {point_rmse:.6f}")
+                            print(f"      平均绝对百分比误差 = {point_mape:.4f}")
+
+                        except Exception as e:
+                            print(f"      R²计算失败: {e}")
+                            result['R²'] = np.nan
+                            result['均方根误差'] = np.nan
+                            result['平均绝对百分比误差'] = np.nan
+                            result['相关系数'] = np.nan
                     else:
                         result['R²'] = np.nan
+                        result['均方根误差'] = np.nan
+                        result['平均绝对百分比误差'] = np.nan
+                        result['相关系数'] = np.nan
                         print(f"      该点数据不足，无法计算R²")
 
                     results.append(result)
@@ -555,43 +549,78 @@ class ReflectanceExtractor_Val:
         # 创建结果DataFrame
         result_df = pd.DataFrame(results)
 
-        # 计算所有点的总体R²（用于参考）
+        # 统计分析
         print(f"\n{'=' * 60}")
-        print("精度评估结果:")
+        print("精度评估统计:")
         print(f"{'=' * 60}")
 
+        if len(results) > 0:
+            # 1. 各点R²统计
+            valid_r2 = result_df['R²'].dropna()
+            if len(valid_r2) > 0:
+                print(f"\n各采样点R²统计:")
+                print(f"  平均R²: {valid_r2.mean():.6f}")
+                print(f"  中位数R²: {valid_r2.median():.6f}")
+                print(f"  最大R²: {valid_r2.max():.6f}")
+                print(f"  最小R²: {valid_r2.min():.6f}")
+                print(f"  标准差: {valid_r2.std():.6f}")
+                print(f"  有效点数: {len(valid_r2)}")
+
+                print(f"\nR²分布:")
+                print(f"  R² > 0.90: {(valid_r2 > 0.90).sum()} 个点")
+                print(f"  0.75 < R² ≤ 0.90: {((valid_r2 > 0.75) & (valid_r2 <= 0.90)).sum()} 个点")
+                print(f"  0.50 < R² ≤ 0.75: {((valid_r2 > 0.50) & (valid_r2 <= 0.75)).sum()} 个点")
+                print(f"  R² ≤ 0.50: {(valid_r2 <= 0.50).sum()} 个点")
+
+            # 2. 均方根误差统计
+            valid_rmse = result_df['均方根误差'].dropna()
+            if len(valid_rmse) > 0:
+                print(f"\n均方根误差统计:")
+                print(f"  平均RMSE: {valid_rmse.mean():.6f}")
+                print(f"  中位数RMSE: {valid_rmse.median():.6f}")
+                print(f"  最大RMSE: {valid_rmse.max():.6f}")
+                print(f"  最小RMSE: {valid_rmse.min():.6f}")
+
+            # 3. 平均绝对百分比误差统计
+            valid_mape = result_df['平均绝对百分比误差'].dropna()
+            if len(valid_mape) > 0:
+                print(f"\n平均绝对百分比误差统计:")
+                print(f"  平均MAPE: {valid_mape.mean():.4f} ({valid_mape.mean() * 100:.2f}%)")
+                print(f"  中位数MAPE: {valid_mape.median():.4f} ({valid_mape.median() * 100:.2f}%)")
+
+        # 4. 总体R²（所有点所有波段）
         if len(all_measured) > 0:
             measured_array = np.array(all_measured)
             extracted_array = np.array(all_extracted)
 
-            # 移除NaN
             mask = ~(np.isnan(measured_array) | np.isnan(extracted_array))
             measured_array = measured_array[mask]
             extracted_array = extracted_array[mask]
 
             if len(measured_array) > 0:
                 overall_r2 = r2_score(measured_array, extracted_array)
-                print(f"\n所有点所有波段的总体 R² = {overall_r2:.6f}")
-                print(f"总样本数: {len(measured_array)}")
-            else:
-                print("\n没有有效的配对数据用于计算总体R²")
-        else:
-            print("\n未找到任何匹配点")
+                overall_rmse = np.sqrt(np.mean((measured_array - extracted_array) ** 2))
 
-        # 统计每个点的R²
-        if len(results) > 0:
-            valid_r2 = [r['R²'] for r in results if 'R²' in r and not np.isnan(r['R²'])]
-            if len(valid_r2) > 0:
-                print(f"\n各点R²统计:")
-                print(f"  平均R²: {np.mean(valid_r2):.6f}")
-                print(f"  最大R²: {np.max(valid_r2):.6f}")
-                print(f"  最小R²: {np.min(valid_r2):.6f}")
-                print(f"  有效点数: {len(valid_r2)}")
-            else:
-                print("\n没有点能够计算R²")
+                print(f"\n{'=' * 60}")
+                print(f"所有点所有波段的总体统计:")
+                print(f"  总体R² = {overall_r2:.6f}")
+                print(f"  总体RMSE = {overall_rmse:.6f}")
+                print(f"  总样本数 = {len(measured_array)}")
+                print(f"  相关系数 = {np.corrcoef(measured_array, extracted_array)[0, 1]:.6f}")
 
         # 保存结果
         if output_path and len(results) > 0:
+            # 调整列顺序
+            cols_order = ['点位', '名称', '经度', '纬度', '高程(m)', '测量时间', '天气信息', '地物类型']
+
+            for band in ['B1', 'B2', 'B3', 'B4']:
+                cols_order.extend([f'{band}_实测', f'{band}_提取', f'{band}_差值', f'{band}_差值/实测'])
+
+            cols_order.extend(['R²', '相关系数', '均方根误差', '平均绝对百分比误差', '匹配影像'])
+
+            cols_exist = [c for c in cols_order if c in result_df.columns]
+            result_df = result_df[cols_exist]
+
             result_df.to_excel(output_path, index=False)
             print(f"\n结果已保存到: {output_path}")
 
@@ -604,8 +633,8 @@ class ReflectanceExtractor_Val:
 # 使用示例
 if __name__ == "__main__":
 
+    # ========== 方式1: 使用配置文件 ==========
     # base_dir = get_base_dir()
-    #
     # xml_path = os.path.join(base_dir, "config.xml")
     #
     # if not os.path.exists(xml_path):
@@ -613,22 +642,18 @@ if __name__ == "__main__":
     #     input("按任意键退出...")
     #     exit(1)
     #
-    # # 读取配置
     # config = read_config(xml_path)
     # if not config:
     #     print("配置文件读取失败，请检查 config.xml")
     #     input("按任意键退出...")
     #     exit(1)
     #
-    #
-    # # 获取路径（自动兼容绝对/相对路径）
     # def get_abs(path_str):
     #     path_str = path_str.strip()
     #     if os.path.isabs(path_str):
     #         return path_str
     #     else:
     #         return os.path.abspath(os.path.join(base_dir, path_str))
-    #
     #
     # image_folder = get_abs(config.get("image_folder", "./images"))
     # excel_path = get_abs(config.get("excel_path", "./input.xlsx"))
@@ -644,14 +669,12 @@ if __name__ == "__main__":
     # print(f"时间阈值: {time_threshold} 天")
     # print("=====================")
     #
-    # # 创建提取器
     # extractor = ReflectanceExtractor_Val(
     #     image_folder=image_folder,
     #     scale_factor=scale_factor,
     #     time_threshold=time_threshold
     # )
     #
-    # # 扫描影像并执行
     # if extractor.scan_images() > 0:
     #     results = extractor.process_excel(excel_path, output_path)
     #     if len(results) > 0:
@@ -664,47 +687,46 @@ if __name__ == "__main__":
     #
     # input("\n任务完成，按任意键退出...")
 
+    # ========== 方式2: 先计算实测反射率，再提取影像反射率 ==========
+    # 步骤1: 计算实测反射率（卷积光谱响应函数）
     # srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
-    #     excel_folder = r".\excel_folder"
-    #     output_folder = r".\output_folder"
-    #
-    #     measured_reflectance(srf_path, excel_folder, output_folder)
+    # excel_folder = r".\excel_folder"
+    # output_folder = r".\output_folder"
+    # measured_reflectance(srf_path, excel_folder, output_folder)
 
-    # 配置文件路径
-    image_folder = r"E:\testimage"
-    excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"
-    output_path = r".\reflectance_results.xlsx"
+    # ========== 方式3: 直接处理（推荐） ==========
+    # 配置路径
+    image_folder = r"E:\testimage"  # 影像文件夹
+    excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"  # 实测反射率Excel
+    output_path = r".\reflectance_results.xlsx"  # 输出结果
 
     # 创建提取器
-    extractor = ReflectanceExtractor_Val(image_folder, scale_factor=10000)
+    extractor = ReflectanceExtractor_Val(
+        image_folder=image_folder,
+        scale_factor=10000,  # 反射率比例因子
+        time_threshold=3  # 时间匹配阈值（天）
+    )
 
     # 扫描影像文件
     if extractor.scan_images() > 0:
-        # 处理Excel
+        # 处理Excel并提取反射率
         results = extractor.process_excel(excel_path, output_path)
 
         # 显示结果预览
         if len(results) > 0:
             print("\n提取结果预览:")
-            print(results.head())
+            print(results.head(10))
+
+            # 显示R²最高和最低的点
+            if 'R²' in results.columns:
+                valid_results = results.dropna(subset=['R²'])
+                if len(valid_results) > 0:
+                    print(f"\nR²最高的点:")
+                    print(valid_results.nlargest(3, 'R²')[['名称', 'R²', '均方根误差', '平均绝对百分比误差']])
+
+                    print(f"\nR²最低的点:")
+                    print(valid_results.nsmallest(3, 'R²')[['名称', 'R²', '均方根误差', '平均绝对百分比误差']])
         else:
             print("\n未找到任何匹配点")
     else:
         print("未找到影像文件，请检查文件夹路径")
-
-
-
-# # ================= 示例调用 =================
-# if __name__ == "__main__":
-#     srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
-#     excel_folder = r".\excel_folder"
-#     output_folder = r".\output_folder"
-#
-#     measured_reflectance(srf_path, excel_folder, output_folder)
-
-
-    # tif_path = r"E:\GF2\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
-    # excel_path = r".\output_folder\GF-2 PMS_实测反射率结果.xlsx"
-    # output_folder = r".\output_folder"
-
-    # df = get_reflectance_auto(tif_path, excel_path, output_folder)
