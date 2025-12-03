@@ -17,12 +17,9 @@ from osgeo import gdal, osr
 from datetime import datetime, timedelta
 import re
 import os
-
 from sklearn.metrics import r2_score
-
 warnings.filterwarnings("ignore")
 import xml.etree.ElementTree as ET
-
 
 def get_base_dir():
     """获取程序运行的根目录（兼容PyInstaller打包）"""
@@ -30,7 +27,6 @@ def get_base_dir():
         return os.path.dirname(sys.executable)
     else:
         return os.path.dirname(os.path.abspath(__file__))
-
 
 def read_config(xml_path):
     """读取XML配置文件并返回字典"""
@@ -44,131 +40,6 @@ def read_config(xml_path):
     except Exception as e:
         print(f"读取配置文件失败: {e}")
         return None
-
-
-def measured_reflectance(srf_file, excel_folder, output_folder):
-    """计算实测反射率的光谱响应函数卷积"""
-    # ========== 1. 读取光谱响应函数 ==========
-    srf_df = pd.read_excel(srf_file)
-    srf_wl = srf_df.iloc[:, 0].values  # wavelength (nm)
-    srf_matrix = srf_df.iloc[:, 1:].values
-    band_names = list(srf_df.columns[1:])
-    n_srf_bands = len(band_names)
-
-    print(f"光谱响应函数波段: {band_names}")
-    print(f"波长范围: {srf_wl.min()} - {srf_wl.max()} nm")
-
-    # ========== 2. 创建输出文件夹 ==========
-    os.makedirs(output_folder, exist_ok=True)
-    results = []
-
-    # ========== 3. 批量处理 Excel 文件 ==========
-    all_files = glob.glob(os.path.join(excel_folder, "*.xlsx"))
-    if not all_files:
-        print("未找到任何 Excel 文件，请检查路径。")
-        return None
-
-    for xlsx in all_files:
-        print(f"\n正在处理文件: {os.path.basename(xlsx)}")
-
-        # ========== 3.1 读取 sheet 信息 ==========
-        try:
-            xl = pd.ExcelFile(xlsx)
-            sheet_names = xl.sheet_names
-        except Exception as e:
-            print(f"读取 Excel 失败: {os.path.basename(xlsx)}，错误: {e}")
-            continue
-
-        # ========== 3.2 提取"基本信息"sheet ==========
-        basic_info = {}
-        basic_sheet = next((sn for sn in sheet_names if "基本信息" in sn), None)
-        if basic_sheet:
-            try:
-                df_basic = pd.read_excel(xlsx, sheet_name=basic_sheet, header=0)
-                if df_basic.shape[0] > 0:
-                    basic_info = df_basic.iloc[0].to_dict()
-                    basic_info = {str(k): str(v) for k, v in basic_info.items() if pd.notna(v)}
-                else:
-                    df_basic2 = pd.read_excel(xlsx, sheet_name=basic_sheet, header=None)
-                    for i in range(len(df_basic2)):
-                        if df_basic2.shape[1] >= 2:
-                            key = str(df_basic2.iloc[i, 0]).strip()
-                            val = str(df_basic2.iloc[i, 1]).strip()
-                            if key.lower() != "nan" and val.lower() != "nan":
-                                basic_info[key] = val
-            except Exception as e:
-                print(f"读取基本信息失败: {e}")
-        else:
-            print("未找到'基本信息'sheet。")
-
-        basic_info.pop("序号", None)
-
-        # ========== 3.3 提取光谱数据sheet ==========
-        try:
-            candidate = None
-            for sn in sheet_names:
-                if any(k in sn for k in ["波长", "反射", "光谱"]):
-                    candidate = sn
-                    break
-            if candidate:
-                df_spec = pd.read_excel(xlsx, sheet_name=candidate)
-            else:
-                df_spec = pd.read_excel(xlsx, sheet_name=1 if len(sheet_names) > 1 else 0)
-        except Exception as e:
-            print(f"读取光谱sheet失败: {e}")
-            continue
-
-        # ========== 4. 提取波长与反射率 ==========
-        try:
-            wl = pd.to_numeric(df_spec.iloc[:, 0], errors='coerce').dropna().values
-            refl = pd.to_numeric(df_spec.iloc[:, 1], errors='coerce').dropna().values
-
-            min_len = min(len(wl), len(refl))
-            wl = wl[:min_len]
-            refl = refl[:min_len]
-
-            valid = (wl >= srf_wl.min()) & (wl <= srf_wl.max())
-            wl = wl[valid]
-            refl = refl[valid]
-        except Exception as e:
-            print(f"解析波长/反射率错误: {e}")
-            continue
-
-        # ========== 5. 插值到 SRF 波长上 ==========
-        refl_interp = np.interp(srf_wl, wl, refl, left=0, right=0)
-
-        # ========== 6. 对每个波段进行加权积分 ==========
-        MSR = []
-        for b in range(n_srf_bands):
-            resp = srf_matrix[:, b]
-            num = np.trapz(refl_interp * resp, srf_wl)
-            den = np.trapz(resp, srf_wl)
-            simul_val = np.nan if den == 0 else num / den
-            MSR.append(simul_val)
-        MSR = np.array(MSR)
-
-        # ========== 7. 保存结果 ==========
-        result_entry = {"文件名": os.path.basename(xlsx)}
-        result_entry.update(basic_info)
-        result_entry.update({band_names[i]: MSR[i] for i in range(n_srf_bands)})
-        results.append(result_entry)
-
-        print(f"{os.path.basename(xlsx)} -> {MSR}")
-
-    # ========== 8. 导出所有结果 ==========
-    if results:
-        out_df = pd.DataFrame(results)
-        out_path = os.path.join(
-            output_folder,
-            os.path.basename(srf_file).split(".")[0] + "_实测反射率结果.xlsx"
-        )
-        out_df.to_excel(out_path, index=False)
-        print(f"\n所有文件计算完成，结果已保存至：\n{out_path}")
-        return out_df
-    else:
-        print("未生成任何有效结果，请检查数据格式。")
-        return None
-
 
 class ReflectanceExtractor_Val:
     """高分2号影像反射率提取工具 - 根据影像范围查找点"""
@@ -608,31 +479,92 @@ class ReflectanceExtractor_Val:
 
         return result_df
 
+def main():
+    # # 配置路径
+    # image_folder = r"E:\test"  # 影像文件夹
+    # excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"  # 实测反射率Excel
+    # output_path = r".\results.xlsx"  # 输出结果
+    #
+    # # 创建提取器
+    # extractor = ReflectanceExtractor_Val(
+    #     image_folder=image_folder,
+    #     scale_factor=10000,  # 反射率比例因子
+    #     time_threshold=3  # 时间匹配阈值（天）
+    # )
+    #
+    # # 扫描影像文件
+    # if extractor.scan_images() > 0:
+    #     # 处理Excel并提取反射率
+    #     results = extractor.process_excel(excel_path, output_path)
+    #
+    #     # 显示结果预览
+    #     if len(results) > 0:
+    #         print("\n提取结果预览:")
+    #         print(results.head(10))
+    #     else:
+    #         print("\n未找到任何匹配点")
+    # else:
+    #     print("未找到影像文件，请检查文件夹路径")
+    base_dir = get_base_dir()
 
-# 使用示例
-if __name__ == "__main__":
-    # 配置路径
-    image_folder = r"C:\Users\7X\Desktop\images"  # 影像文件夹
-    excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"  # 实测反射率Excel
-    output_path = r".\reflectance_results.xlsx"  # 输出结果
+    xml_path = os.path.join(base_dir, "Fuse_ARDValidation.xml")
+
+    if not os.path.exists(xml_path):
+        print(f"未找到配置文件: {xml_path}")
+        input("按任意键退出...")
+        exit(1)
+
+    # 读取配置
+    config = read_config(xml_path)
+    if not config:
+        print("配置文件读取失败，请检查 config.xml")
+        input("按任意键退出...")
+        exit(1)
+
+
+    # 获取路径（自动兼容绝对/相对路径）
+    def get_abs(path_str):
+        path_str = path_str.strip()
+        if os.path.isabs(path_str):
+            return path_str
+        else:
+            return os.path.abspath(os.path.join(base_dir, path_str))
+
+
+    image_folder = get_abs(config.get("image_folder", "./images"))
+    excel_path = get_abs(config.get("excel_path", "./input.xlsx"))
+    output_path = get_abs(config.get("output_path", "./reflectance_results.xlsx"))
+    scale_factor = int(config.get("scale_factor", "10000"))
+    time_threshold = int(config.get("time_threshold", "3"))
+
+    print("====== 配置参数 ======")
+    print(f"影像文件夹: {image_folder}")
+    print(f"Excel路径: {excel_path}")
+    print(f"输出路径: {output_path}")
+    print(f"比例因子: {scale_factor}")
+    print(f"时间阈值: {time_threshold} 天")
+    print("=====================")
 
     # 创建提取器
     extractor = ReflectanceExtractor_Val(
         image_folder=image_folder,
-        scale_factor=10000,  # 反射率比例因子
-        time_threshold=3  # 时间匹配阈值（天）
+        scale_factor=scale_factor,
+        time_threshold=time_threshold
     )
 
-    # 扫描影像文件
+    # 扫描影像并执行
     if extractor.scan_images() > 0:
-        # 处理Excel并提取反射率
         results = extractor.process_excel(excel_path, output_path)
-
-        # 显示结果预览
         if len(results) > 0:
             print("\n提取结果预览:")
-            print(results.head(10))
+            print(results.head())
         else:
             print("\n未找到任何匹配点")
     else:
-        print("未找到影像文件，请检查文件夹路径")
+        print("未找到影像文件，请检查路径")
+
+    input("\n任务完成，按任意键退出...")
+
+# 使用示例
+if __name__ == "__main__":
+    main()
