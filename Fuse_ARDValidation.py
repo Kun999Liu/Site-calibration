@@ -602,7 +602,7 @@ class ReflectanceExtractor_Val:
 
 
 # 使用示例
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
     # base_dir = get_base_dir()
     #
@@ -671,36 +671,36 @@ if __name__ == "__main__":
     #     measured_reflectance(srf_path, excel_folder, output_folder)
 
     # 配置文件路径
-    image_folder = r"E:\testimage"
-    excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"
-    output_path = r".\reflectance_results.xlsx"
+    # image_folder = r"E:\testimage"
+    # excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"
+    # output_path = r".\reflectance_results.xlsx"
+    #
+    # # 创建提取器
+    # extractor = ReflectanceExtractor_Val(image_folder, scale_factor=10000)
+    #
+    # # 扫描影像文件
+    # if extractor.scan_images() > 0:
+    #     # 处理Excel
+    #     results = extractor.process_excel(excel_path, output_path)
+    #
+    #     # 显示结果预览
+    #     if len(results) > 0:
+    #         print("\n提取结果预览:")
+    #         print(results.head())
+    #     else:
+    #         print("\n未找到任何匹配点")
+    # else:
+    #     print("未找到影像文件，请检查文件夹路径")
 
-    # 创建提取器
-    extractor = ReflectanceExtractor_Val(image_folder, scale_factor=10000)
-
-    # 扫描影像文件
-    if extractor.scan_images() > 0:
-        # 处理Excel
-        results = extractor.process_excel(excel_path, output_path)
-
-        # 显示结果预览
-        if len(results) > 0:
-            print("\n提取结果预览:")
-            print(results.head())
-        else:
-            print("\n未找到任何匹配点")
-    else:
-        print("未找到影像文件，请检查文件夹路径")
 
 
+# ================= 示例调用 =================
+if __name__ == "__main__":
+    srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
+    excel_folder = r".\excel_folder"
+    output_folder = r".\output_folder"
 
-# # ================= 示例调用 =================
-# if __name__ == "__main__":
-#     srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
-#     excel_folder = r".\excel_folder"
-#     output_folder = r".\output_folder"
-#
-#     measured_reflectance(srf_path, excel_folder, output_folder)
+    measured_reflectance(srf_path, excel_folder, output_folder)
 
 
     # tif_path = r"E:\GF2\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
