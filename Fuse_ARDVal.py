@@ -481,89 +481,89 @@ class ReflectanceExtractor_Val:
 
 def main():
     # # 配置路径
-    # image_folder = r"E:\test"  # 影像文件夹
-    # excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"  # 实测反射率Excel
-    # output_path = r".\results.xlsx"  # 输出结果
-    #
-    # # 创建提取器
-    # extractor = ReflectanceExtractor_Val(
-    #     image_folder=image_folder,
-    #     scale_factor=10000,  # 反射率比例因子
-    #     time_threshold=3  # 时间匹配阈值（天）
-    # )
-    #
-    # # 扫描影像文件
-    # if extractor.scan_images() > 0:
-    #     # 处理Excel并提取反射率
-    #     results = extractor.process_excel(excel_path, output_path)
-    #
-    #     # 显示结果预览
-    #     if len(results) > 0:
-    #         print("\n提取结果预览:")
-    #         print(results.head(10))
-    #     else:
-    #         print("\n未找到任何匹配点")
-    # else:
-    #     print("未找到影像文件，请检查文件夹路径")
-    base_dir = get_base_dir()
-
-    xml_path = os.path.join(base_dir, "Fuse_ARDValidation.xml")
-
-    if not os.path.exists(xml_path):
-        print(f"未找到配置文件: {xml_path}")
-        input("按任意键退出...")
-        exit(1)
-
-    # 读取配置
-    config = read_config(xml_path)
-    if not config:
-        print("配置文件读取失败，请检查 config.xml")
-        input("按任意键退出...")
-        exit(1)
-
-
-    # 获取路径（自动兼容绝对/相对路径）
-    def get_abs(path_str):
-        path_str = path_str.strip()
-        if os.path.isabs(path_str):
-            return path_str
-        else:
-            return os.path.abspath(os.path.join(base_dir, path_str))
-
-
-    image_folder = get_abs(config.get("image_folder", "./images"))
-    excel_path = get_abs(config.get("excel_path", "./input.xlsx"))
-    output_path = get_abs(config.get("output_path", "./reflectance_results.xlsx"))
-    scale_factor = int(config.get("scale_factor", "10000"))
-    time_threshold = int(config.get("time_threshold", "3"))
-
-    print("====== 配置参数 ======")
-    print(f"影像文件夹: {image_folder}")
-    print(f"Excel路径: {excel_path}")
-    print(f"输出路径: {output_path}")
-    print(f"比例因子: {scale_factor}")
-    print(f"时间阈值: {time_threshold} 天")
-    print("=====================")
+    image_folder = r"E:\test"  # 影像文件夹
+    excel_path = r".\output_folder\GF-2 PMS2_实测反射率结果.xlsx"  # 实测反射率Excel
+    output_path = r".\results.xlsx"  # 输出结果
 
     # 创建提取器
     extractor = ReflectanceExtractor_Val(
         image_folder=image_folder,
-        scale_factor=scale_factor,
-        time_threshold=time_threshold
+        scale_factor=10000,  # 反射率比例因子
+        time_threshold=3  # 时间匹配阈值（天）
     )
 
-    # 扫描影像并执行
+    # 扫描影像文件
     if extractor.scan_images() > 0:
+        # 处理Excel并提取反射率
         results = extractor.process_excel(excel_path, output_path)
+
+        # 显示结果预览
         if len(results) > 0:
             print("\n提取结果预览:")
-            print(results.head())
+            print(results.head(10))
         else:
             print("\n未找到任何匹配点")
     else:
-        print("未找到影像文件，请检查路径")
-
-    input("\n任务完成，按任意键退出...")
+        print("未找到影像文件，请检查文件夹路径")
+    # base_dir = get_base_dir()
+    #
+    # xml_path = os.path.join(base_dir, "Fuse_ARDValidation.xml")
+    #
+    # if not os.path.exists(xml_path):
+    #     print(f"未找到配置文件: {xml_path}")
+    #     input("按任意键退出...")
+    #     exit(1)
+    #
+    # # 读取配置
+    # config = read_config(xml_path)
+    # if not config:
+    #     print("配置文件读取失败，请检查 config.xml")
+    #     input("按任意键退出...")
+    #     exit(1)
+    #
+    #
+    # # 获取路径（自动兼容绝对/相对路径）
+    # def get_abs(path_str):
+    #     path_str = path_str.strip()
+    #     if os.path.isabs(path_str):
+    #         return path_str
+    #     else:
+    #         return os.path.abspath(os.path.join(base_dir, path_str))
+    #
+    #
+    # image_folder = get_abs(config.get("image_folder", "./images"))
+    # excel_path = get_abs(config.get("excel_path", "./input.xlsx"))
+    # output_path = get_abs(config.get("output_path", "./reflectance_results.xlsx"))
+    # scale_factor = int(config.get("scale_factor", "10000"))
+    # time_threshold = int(config.get("time_threshold", "3"))
+    #
+    # print("====== 配置参数 ======")
+    # print(f"影像文件夹: {image_folder}")
+    # print(f"Excel路径: {excel_path}")
+    # print(f"输出路径: {output_path}")
+    # print(f"比例因子: {scale_factor}")
+    # print(f"时间阈值: {time_threshold} 天")
+    # print("=====================")
+    #
+    # # 创建提取器
+    # extractor = ReflectanceExtractor_Val(
+    #     image_folder=image_folder,
+    #     scale_factor=scale_factor,
+    #     time_threshold=time_threshold
+    # )
+    #
+    # # 扫描影像并执行
+    # if extractor.scan_images() > 0:
+    #     results = extractor.process_excel(excel_path, output_path)
+    #     if len(results) > 0:
+    #         print("\n提取结果预览:")
+    #         print(results.head())
+    #     else:
+    #         print("\n未找到任何匹配点")
+    # else:
+    #     print("未找到影像文件，请检查路径")
+    #
+    # input("\n任务完成，按任意键退出...")
 
 # 使用示例
 if __name__ == "__main__":
