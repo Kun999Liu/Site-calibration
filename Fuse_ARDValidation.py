@@ -696,7 +696,7 @@ class ReflectanceExtractor_Val:
 
 # ================= 示例调用 =================
 if __name__ == "__main__":
-    srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
+    srf_path = r".\SpecRsp\GF2\GF-2 PMS2.xlsx"
     excel_folder = r".\excel_folder"
     output_folder = r".\output_folder"
 
