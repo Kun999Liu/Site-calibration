@@ -696,15 +696,15 @@ class ReflectanceExtractor_Val:
 
 # ================= 示例调用 =================
 if __name__ == "__main__":
-    srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
-    excel_folder = r".\excel_folder"
+    # srf_path = r".\SpecRsp\GF2\GF-2 PMS1.xlsx"
+    # excel_folder = r".\excel_folder"
+    # output_folder = r".\output_folder"
+    #
+    # measured_reflectance(srf_path, excel_folder, output_folder)
+
+
+    tif_path = r"E:\GF2\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
+    excel_path = r".\output_folder\GF-2 PMS_实测反射率结果.xlsx"
     output_folder = r".\output_folder"
 
-    measured_reflectance(srf_path, excel_folder, output_folder)
-
-
-    # tif_path = r"E:\GF2\GF2_PMS1_E93.5_N42.6_20250624_L1A14721219001_fuse.tif"
-    # excel_path = r".\output_folder\GF-2 PMS_实测反射率结果.xlsx"
-    # output_folder = r".\output_folder"
-
-    # df = get_reflectance_auto(tif_path, excel_path, output_folder)
+    ReflectanceExtractor_Val

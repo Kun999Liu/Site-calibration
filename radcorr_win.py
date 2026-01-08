@@ -1,7 +1,16 @@
-import os, sys
 import xml.etree.ElementTree as ET
 import clr
-
+import os
+import sys
+# if getattr(sys, 'frozen', False):
+#     base = sys._MEIPASS
+#     os.add_dll_directory(os.path.join(base, 'gdal_bin'))
+#     os.environ['GDAL_DATA'] = os.path.join(base, 'gdal_data')
+#     os.environ['PROJ_LIB'] = os.path.join(base, 'proj_data')
+if hasattr(sys, "_MEIPASS"):
+    base = sys._MEIPASS
+    os.environ.setdefault("GDAL_DATA", os.path.join(base, "gdal"))
+    os.environ.setdefault("PROJ_LIB", os.path.join(base, "proj"))
 clr.AddReference("System")
 from System import Array, Double
 from System.Collections.Generic import List

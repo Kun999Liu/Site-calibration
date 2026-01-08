@@ -8,15 +8,20 @@
 """
 Describe: 读取大气校正后的影像数据，分别将每个波段的数据跟真实值做验证
 """
+import re
+import os
 import glob
 import sys
+if getattr(sys, 'frozen', False):
+    base = sys._MEIPASS
+    os.add_dll_directory(os.path.join(base, 'gdal_bin'))
+    os.environ['GDAL_DATA'] = os.path.join(base, 'gdal_data')
+    os.environ['PROJ_LIB'] = os.path.join(base, 'proj_data')
 import warnings
 import pandas as pd
 import numpy as np
 from osgeo import gdal, osr
 from datetime import datetime, timedelta
-import re
-import os
 from sklearn.metrics import r2_score
 warnings.filterwarnings("ignore")
 import xml.etree.ElementTree as ET

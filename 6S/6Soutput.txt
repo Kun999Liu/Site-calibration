@@ -9,7 +9,7 @@
 *                       -------------------------------                       *
 *                       user defined conditions                               *
 *                                                                             *
-*   month: 11 day :  22                                                       *
+*   month: 12 day :  15                                                       *
 *   solar zenith angle:    1.00 deg  solar azimuthal angle:        1.00 deg   *
 *   view zenith angle:     1.00 deg  view azimuthal angle:         1.00 deg   *
 *   scattering angle:    180.00 deg  azimuthal angle difference:   0.00 deg   *
@@ -21,7 +21,7 @@
 *           aerosols type identity :                                          *
 *                      Desertic aerosols model                                *
 *           optical condition identity :                                      *
-*                visibility :  8.49 km  opt. thick. 550nm : 0.5000            *
+*                visibility :151.58 km  opt. thick. 550nm : 0.0500            *
 *                                                                             *
 *                       spectral condition                                    *
 *                       ------------------                                    *
@@ -51,37 +51,37 @@
 *                                                                             *
 *                         integrated values of  :                             *
 *                         --------------------                                *
-*       apparent reflectance  0.7812    appar. rad.(w/m2/sr/mic)    419.244   *
+*       apparent reflectance  0.7845    appar. rad.(w/m2/sr/mic)    423.957   *
 *                   total gaseous transmittance  0.933                        *
 *                                                                             *
 *******************************************************************************
 *                                                                             *
 *                         coupling aerosol -wv  :                             *
 *                         --------------------                                *
-*           wv above aerosol :   0.781     wv mixed with aerosol :   0.781    *
-*                       wv under aerosol :   0.782                            *
+*           wv above aerosol :   0.785     wv mixed with aerosol :   0.785    *
+*                       wv under aerosol :   0.785                            *
 *                                                                             *
 *                         int. normalized  values  of  :                      *
 *                         ---------------------------                         *
 *                      % of irradiance at ground level                        *
 *     % of direct  irr.    % of diffuse irr.    % of enviro. irr              *
-*               0.578               0.303               0.119                 *
+*               0.887               0.062               0.051                 *
 *                       reflectance at satellite level                        *
 *     atm. intrin. ref.   background  ref.  pixel  reflectance                *
-*               0.080               0.241               0.460                 *
+*               0.026               0.049               0.709                 *
 *                                                                             *
 *                         int. absolute values of                             *
 *                         -----------------------                             *
 *                      irr. at ground level (w/m2/mic)                        *
 *     direct solar irr.    atm. diffuse irr.    environment  irr              *
-*             954.877             501.245             197.162                 *
+*            1478.971             102.918              85.787                 *
 *                      rad at satel. level (w/m2/sr/mic)                      *
 *     atm. intrin. rad.    background  rad.    pixel  radiance                *
-*              42.777             129.591             246.876                 *
+*              14.264              26.655             383.038                 *
 *                                                                             *
 *                                                                             *
 *          int. funct filter (in mic)              int. sol. spect (in w/m2)  *
-*             0.0315712                                  53.238               *
+*             0.0315712                                  53.608               *
 *                                                                             *
 *******************************************************************************
  
@@ -106,19 +106,19 @@
 *                                                                             *
 *                                                                             *
 *      rayl.  sca. trans. :    0.97308        0.97308        0.94689          *
-*      aeros. sca.   "    :    0.92081        0.92081        0.84789          *
-*      total  sca.   "    :    0.89482        0.89482        0.80070          *
+*      aeros. sca.   "    :    0.99247        0.99247        0.98499          *
+*      total  sca.   "    :    0.96539        0.96539        0.93198          *
 *                                                                             *
 *                                                                             *
 *                                                                             *
 *                             rayleigh       aerosols         total           *
 *                                                                             *
-*      spherical albedo   :    0.04891        0.11485        0.14415          *
-*      optical depth total:    0.05465        0.47837        0.53302          *
-*      optical depth plane:    0.05465        0.47837        0.53302          *
-*      reflectance        :    0.02080        0.06819        0.08519          *
-*      phase function     :    1.47936        0.74757        0.82259          *
-*      sing. scat. albedo :    1.00000        0.93543        0.94205          *
+*      spherical albedo   :    0.04891        0.01720        0.06218          *
+*      optical depth total:    0.05465        0.04784        0.10249          *
+*      optical depth plane:    0.05465        0.04784        0.10249          *
+*      reflectance        :    0.02080        0.00814        0.02803          *
+*      phase function     :    1.47936        0.74757        1.13778          *
+*      sing. scat. albedo :    1.00000        0.93543        0.96986          *
 *                                                                             *
 *                                                                             *
 *******************************************************************************
@@ -131,8 +131,8 @@
 *                        -----------------------------                        *
 *       input apparent reflectance            :    0.002                      *
 *       measured radiance [w/m2/sr/mic]       :    0.842                      *
-*       atmospherically corrected reflectance :   -0.106                      *
-*       coefficients xa xb xc                 :  0.00250  0.11408  0.14415    *
+*       atmospherically corrected reflectance :   -0.029                      *
+*       coefficients xa xb xc                 :  0.00213  0.03225  0.06218    *
 *       y=xa*(measured radiance)-xb;  acr=y/(1.+xc*y)                         *
 *******************************************************************************
 
@@ -195,15 +195,15 @@
 *                                                                             *
 *                         integrated values of  :                             *
 *                         --------------------                                *
-*       apparent reflectance  1.0312    appar. rad.(w/m2/sr/mic)    309.013   *
+*       apparent reflectance  0.9745    appar. rad.(w/m2/sr/mic)    292.020   *
 *                   total gaseous transmittance  1.000                        *
 *                                                                             *
 *******************************************************************************
 *                                                                             *
 *                         coupling aerosol -wv  :                             *
 *                         --------------------                                *
-*           wv above aerosol :   1.031     wv mixed with aerosol :   1.031    *
-*                       wv under aerosol :   1.031                            *
+*           wv above aerosol :   0.974     wv mixed with aerosol :   0.974    *
+*                       wv under aerosol :   0.974                            *
 *                                                                             *
 *                         int. normalized  values  of  :                      *
 *                         ---------------------------                         *
@@ -212,7 +212,7 @@
 *               0.983               0.005               0.011                 *
 *                       reflectance at satellite level                        *
 *     atm. intrin. ref.   background  ref.  pixel  reflectance                *
-*               0.082               0.012               0.937                 *
+*               0.026               0.012               0.937                 *
 *                                                                             *
 *                         int. absolute values of                             *
 *                         -----------------------                             *
@@ -221,7 +221,7 @@
 *             929.756               4.948              10.821                 *
 *                      rad at satel. level (w/m2/sr/mic)                      *
 *     atm. intrin. rad.    background  rad.    pixel  radiance                *
-*              24.644               3.533             280.836                 *
+*               7.651               3.533             280.836                 *
 *                                                                             *
 *                                                                             *
 *          int. funct filter (in mic)              int. sol. spect (in w/m2)  *
@@ -260,7 +260,7 @@
 *      spherical albedo   :    0.01204        0.00000        0.01211          *
 *      optical depth total:    0.01250        0.00000        0.01250          *
 *      optical depth plane:    0.00000        0.00000        0.00000          *
-*      reflectance        :    0.01826        0.00000        0.08224          *
+*      reflectance        :    0.01826        0.00000        0.02553          *
 *      phase function     :    1.47936        0.00000        1.47936          *
 *      sing. scat. albedo :    1.00000        0.00000        1.00000          *
 *                                                                             *
@@ -275,8 +275,8 @@
 *                        -----------------------------                        *
 *       input apparent reflectance            :    0.003                      *
 *       measured radiance [w/m2/sr/mic]       :    0.952                      *
-*       atmospherically corrected reflectance :   -0.080                      *
-*       coefficients xa xb xc                 :  0.00336  0.08283  0.01211    *
+*       atmospherically corrected reflectance :   -0.023                      *
+*       coefficients xa xb xc                 :  0.00336  0.02571  0.01211    *
 *       y=xa*(measured radiance)-xb;  acr=y/(1.+xc*y)                         *
 *******************************************************************************
 
@@ -339,15 +339,15 @@
 *                                                                             *
 *                         integrated values of  :                             *
 *                         --------------------                                *
-*       apparent reflectance  1.0068    appar. rad.(w/m2/sr/mic)    250.585   *
+*       apparent reflectance  0.9501    appar. rad.(w/m2/sr/mic)    236.471   *
 *                   total gaseous transmittance  1.000                        *
 *                                                                             *
 *******************************************************************************
 *                                                                             *
 *                         coupling aerosol -wv  :                             *
 *                         --------------------                                *
-*           wv above aerosol :   1.007     wv mixed with aerosol :   1.007    *
-*                       wv under aerosol :   1.007                            *
+*           wv above aerosol :   0.950     wv mixed with aerosol :   0.950    *
+*                       wv under aerosol :   0.950                            *
 *                                                                             *
 *                         int. normalized  values  of  :                      *
 *                         ---------------------------                         *
@@ -356,7 +356,7 @@
 *               0.990               0.003               0.008                 *
 *                       reflectance at satellite level                        *
 *     atm. intrin. ref.   background  ref.  pixel  reflectance                *
-*               0.082               0.008               0.917                 *
+*               0.026               0.008               0.917                 *
 *                                                                             *
 *                         int. absolute values of                             *
 *                         -----------------------                             *
@@ -365,7 +365,7 @@
 *             775.162               2.035               6.124                 *
 *                      rad at satel. level (w/m2/sr/mic)                      *
 *     atm. intrin. rad.    background  rad.    pixel  radiance                *
-*              20.468               1.994             228.123                 *
+*               6.354               1.994             228.123                 *
 *                                                                             *
 *                                                                             *
 *          int. funct filter (in mic)              int. sol. spect (in w/m2)  *
@@ -404,7 +404,7 @@
 *      spherical albedo   :    0.00843        0.00000        0.00847          *
 *      optical depth total:    0.00870        0.00000        0.00870          *
 *      optical depth plane:    0.00000        0.00000        0.00000          *
-*      reflectance        :    0.01826        0.00000        0.08224          *
+*      reflectance        :    0.01826        0.00000        0.02553          *
 *      phase function     :    1.47936        0.00000        1.47936          *
 *      sing. scat. albedo :    1.00000        0.00000        1.00000          *
 *                                                                             *
@@ -419,8 +419,8 @@
 *                        -----------------------------                        *
 *       input apparent reflectance            :    0.003                      *
 *       measured radiance [w/m2/sr/mic]       :    0.867                      *
-*       atmospherically corrected reflectance :   -0.079                      *
-*       coefficients xa xb xc                 :  0.00404  0.08274  0.00847    *
+*       atmospherically corrected reflectance :   -0.022                      *
+*       coefficients xa xb xc                 :  0.00404  0.02569  0.00847    *
 *       y=xa*(measured radiance)-xb;  acr=y/(1.+xc*y)                         *
 *******************************************************************************
 

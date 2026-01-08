@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # ===== 配置参数 =====
 
     # 输入文件路径（请修改为您的实际文件路径）
-    input_file = r"E:\GF2_PMS2_E110.3_N37.5_20231122_L1A13489459001\GF2_PMS2_E110.3_N37.5_20231122_L1A13489459001\GF2_PMS2_E110.3_N37.5_20231122_L1A13489459001-MSS2.tif"
+    input_file = r"C:\Users\liuku\Desktop\xiangmu\ARDValidation\testimages\GF2_PMS2_E110.3_N37.5_20231122_L1A13489459001-MSS2.tif"
 
     # ===== 模式1：单次平移 =====
     # 取消下面的注释来使用
