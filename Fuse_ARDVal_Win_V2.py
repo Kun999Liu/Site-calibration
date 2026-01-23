@@ -77,7 +77,7 @@ class ConfigLoader:
 class ProcessThread(QThread):
     """处理线程"""
     progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
+    finished = pyqtSignal(bool, str, list)  # 添加results参数
 
     def __init__(self, extractor, excel_path, output_path):
         super().__init__()
@@ -95,14 +95,23 @@ class ProcessThread(QThread):
 
                 results = self.extractor.process_excel(self.excel_path, self.output_path)
 
-                if len(results) > 0:
-                    self.finished.emit(True, f"处理完成！共匹配 {len(results)} 个点")
+                # 将DataFrame转换为字典列表
+                if hasattr(results, 'to_dict'):
+                    results_list = results.to_dict('records')
+                elif isinstance(results, list):
+                    results_list = results
                 else:
-                    self.finished.emit(False, "未找到任何匹配点")
+                    results_list = []
+
+                if len(results_list) > 0:
+                    self.finished.emit(True, f"处理完成！共匹配 {len(results_list)} 个点", results_list)
+                else:
+                    self.finished.emit(False, "未找到任何匹配点", [])
             else:
-                self.finished.emit(False, "未找到影像文件，请检查路径")
+                self.finished.emit(False, "未找到影像文件，请检查路径", [])
         except Exception as e:
-            self.finished.emit(False, f"处理出错: {str(e)}")
+            import traceback
+            self.finished.emit(False, f"处理出错: {str(e)}\n{traceback.format_exc()}", [])
 
 
 class ImageViewer(QLabel):
@@ -359,7 +368,7 @@ class ImageViewer(QLabel):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("反射率提取验证工具 v2.0")
+        self.setWindowTitle("高分ARD真实性检验")
         self.setGeometry(100, 100, 1600, 900)
 
         # 应用全局样式
@@ -386,6 +395,7 @@ class MainWindow(QMainWindow):
         self.extractor = None
         self.current_image_index = 0
         self.matched_points = {}  # {image_index: [points]}
+        self.process_results = []  # 存储处理结果
 
     def create_control_panel(self):
         """创建左侧控制面板"""
@@ -544,19 +554,7 @@ class MainWindow(QMainWindow):
 
         # 影像显示器
         self.image_viewer = ImageViewer()
-        self.image_viewer.point_clicked.connect(self.on_point_clicked)
         layout.addWidget(self.image_viewer, stretch=1)
-
-        # 点位信息显示
-        info_group = QGroupBox("点位信息")
-        info_layout = QVBoxLayout()
-        self.point_info_text = QTextEdit()
-        self.point_info_text.setReadOnly(True)
-        self.point_info_text.setMaximumHeight(150)
-        self.point_info_text.setText("点击影像上的点查看详细信息")
-        info_layout.addWidget(self.point_info_text)
-        info_group.setLayout(info_layout)
-        layout.addWidget(info_group)
 
         return widget
 
@@ -719,7 +717,6 @@ class MainWindow(QMainWindow):
             self.image_label.setText(
                 f"影像 {self.current_image_index + 1}/{len(self.extractor.images)}: {filename}"
             )
-            # self.log(f"显示: {filename} (包含 {len(points_data)} 个点)")
 
     def show_previous_image(self):
         """显示上一幅影像"""
@@ -742,21 +739,6 @@ class MainWindow(QMainWindow):
     def reset_zoom(self):
         """重置缩放"""
         self.zoom_slider.setValue(100)
-
-    def on_point_clicked(self, point):
-        """点击点时显示信息"""
-        info_text = f"""
-<b>点位详细信息</b><br>
-<hr>
-<b>影像坐标:</b> ({point['x']:.2f}, {point['y']:.2f})<br>
-"""
-        if 'info' in point:
-            info = point['info']
-            info_text += f"<b>点位ID:</b> {info.get('id', 'N/A')}<br>"
-            info_text += f"<b>测量时间:</b> {info.get('time', 'N/A')}<br>"
-            info_text += f"<b>反射率:</b> {info.get('reflectance', 'N/A')}<br>"
-
-        self.point_info_text.setHtml(info_text)
 
     def start_processing(self):
         """开始处理"""
@@ -796,11 +778,34 @@ class MainWindow(QMainWindow):
         self.thread.finished.connect(self.on_processing_finished)
         self.thread.start()
 
-    def on_processing_finished(self, success, message):
+    def on_processing_finished(self, success, message, results):
         """处理完成回调"""
         self.log("=" * 50)
         if success:
             self.log(f"{message}")
+            # 将结果信息输出到日志
+            self.process_results = results
+            self.log(f"结果已保存到输出文件")
+
+            # 输出结果摘要信息
+            if results and len(results) > 0:
+                self.log("=" * 50)
+                self.log("处理结果摘要:")
+                self.log(f"总记录数: {len(results)}")
+
+                # 显示前几条数据的关键信息
+                self.log("-" * 50)
+                for i, result in enumerate(results[:5]):  # 只显示前5条
+                    self.log(f"记录 {i + 1}:")
+                    for key, value in result.items():
+                        if isinstance(value, float):
+                            self.log(f"  {key}: {value:.4f}")
+                        else:
+                            self.log(f"  {key}: {value}")
+                    self.log("-" * 30)
+
+                if len(results) > 5:
+                    self.log(f"... 还有 {len(results) - 5} 条记录，详见输出文件")
         else:
             self.log(f"{message}")
 
@@ -923,6 +928,56 @@ class MainWindow(QMainWindow):
                 border-radius: 6px;
                 padding: 10px;
                 color: #333333;
+            }
+
+            QTableWidget {
+                background-color: #ffffff;
+                border: 2px solid #E0E0E0;
+                border-radius: 6px;
+                gridline-color: #E0E0E0;
+                color: #333333;
+            }
+
+            QTableWidget::item {
+                padding: 5px;
+            }
+
+            QTableWidget::item:selected {
+                background-color: #4A90E2;
+                color: white;
+            }
+
+            QHeaderView::section {
+                background-color: #4A90E2;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+
+            QTableWidget {
+                background-color: #ffffff;
+                border: 2px solid #E0E0E0;
+                border-radius: 6px;
+                gridline-color: #E0E0E0;
+                color: #333333;
+            }
+
+            QTableWidget::item {
+                padding: 5px;
+            }
+
+            QTableWidget::item:selected {
+                background-color: #4A90E2;
+                color: white;
+            }
+
+            QHeaderView::section {
+                background-color: #4A90E2;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
             }
 
             QProgressBar {

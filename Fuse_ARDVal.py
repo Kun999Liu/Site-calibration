@@ -10,7 +10,6 @@ Describe: 读取大气校正后的影像数据，分别将每个波段的数据�
 """
 import re
 import os
-import glob
 import sys
 if getattr(sys, 'frozen', False):
     base = sys._MEIPASS
